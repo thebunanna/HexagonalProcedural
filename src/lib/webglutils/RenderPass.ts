@@ -166,6 +166,17 @@ export class RenderPass {
     this.indexBufferData = data;
   }
 
+  public updateIndex(data: Uint32Array) {
+    const gl: WebGLRenderingContext = this.ctx;
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
+    gl.bufferData(
+      gl.ELEMENT_ARRAY_BUFFER,
+      data,
+      gl.STATIC_DRAW
+    );
+  }
+  
   public addAttribute(attribName: string, size: number, type: GLenum, normalized: boolean,
                       stride: number, offset: number, bufferName?: string, bufferData?: BufferData) {
 
@@ -187,6 +198,36 @@ export class RenderPass {
     }
 
     this.attributes.push(new Attribute(attribName, size, type, normalized, stride, offset, bufferName));
+  }
+
+  public updateAttr (name : string, bufferData?: BufferData) {
+    const gl: WebGLRenderingContext = this.ctx;
+
+    let b = this.attributes.some((attr) => {
+      if (attr.name == name) {
+        let attrLoc = gl.getAttribLocation(this.shaderProgram, attr.name);
+        let attrBuffer = this.attributeBuffers.get(attr.bufferName);
+        if (attrBuffer) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, attrBuffer.bufferId);
+          gl.bufferData(gl.ARRAY_BUFFER, bufferData, gl.STATIC_DRAW);
+          gl.vertexAttribPointer(
+            attrLoc,
+            attr.size,
+            attr.type,
+            attr.normalized,
+            attr.stride,
+            attr.offset
+          )
+          gl.enableVertexAttribArray(attrLoc);
+        } else {
+          console.error("Attribute's buffer name not found", this);
+        }
+        return true;
+      }
+      return false;
+    });
+    if (!b) console.error("Buffer not found to update");
+      
   }
 
   public addTextureMap(texture: String, vShader?: string, fShader?: string) {

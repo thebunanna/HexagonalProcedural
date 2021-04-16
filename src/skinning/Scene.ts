@@ -41,6 +41,11 @@ export class Ray {
   public origin: Vec3;
   public direction: Vec3;
 
+  constructor (pos: Vec3, dir: Vec3) {
+    this.origin = pos;
+    this.direction = dir;
+  }
+
   public at (time:number) : Vec3 {
     let ret : Vec3;
     this.direction.scale(time, ret)
@@ -129,7 +134,8 @@ export class Mesh {
   private boneIndices: number[];
   private bonePositions: Float32Array;
   private boneIndexAttribute: Float32Array;
-
+  private hboneIndex: number = 0;
+  
   constructor(mesh: MeshLoader) {
     this.geometry = new MeshGeometry(mesh.geometry);
     this.worldMatrix = mesh.worldMatrix.copy();
@@ -160,15 +166,24 @@ export class Mesh {
   public getHighlightedBones(): Float32Array {
     let harray = []
     this.bones.forEach(e => {
-      harray.push (!e.isHighlight)
-      harray.push (!e.isHighlight)
-      e.isHighlight = !e.isHighlight;
+      harray.push (e.isHighlight)
+      harray.push (e.isHighlight)
     });
 
-    console.log (harray.length, this.boneIndices.length)
     return new Float32Array(harray);
   }
 
+  public setHighlight(index : number): void {
+    if (index == -1) {
+      this.bones[this.hboneIndex].isHighlight = false;
+      this.hboneIndex = 0;
+      return;
+    }
+    console.log (this.hboneIndex);
+    this.bones[this.hboneIndex].isHighlight = false;
+    this.bones[index].isHighlight = true;
+    this.hboneIndex = index;
+  }
   public getBoneTranslations(): Float32Array {
     let trans = new Float32Array(3 * this.bones.length);
     this.bones.forEach((bone, index) => {

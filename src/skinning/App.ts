@@ -13,7 +13,9 @@ import {
   skeletonFSText,
   skeletonVSText,
   sBackVSText,
-  sBackFSText
+  sBackFSText,
+  debugVSText,
+  debugFSText
 } from "./Shaders.js";
 import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
 import { CLoader } from "./AnimationFileLoader.js";
@@ -36,10 +38,11 @@ export class SkinningAnimation extends CanvasAnimation {
 
   /* Skeleton rendering info */
   private skeletonRenderPass: RenderPass[];
-
+  private highlightBuffer: WebGLBuffer = -1;
+  private highlightALoc: GLint = -1;
   /* Scrub bar background rendering info */
   private sBackRenderPass: RenderPass;
-  
+  private debugPass: RenderPass;
 
   /* Global Rendering Info */
   private lightPosition: Vec4;
@@ -81,7 +84,7 @@ export class SkinningAnimation extends CanvasAnimation {
     // Status bar
     this.sBackRenderPass = new RenderPass(this.extVAO, gl, sBackVSText, sBackFSText);
     
-    
+    this.debugPass = new RenderPass(this.extVAO, gl, debugVSText, debugFSText);
     // TODO
     // Other initialization, for instance, for the bone highlighting
     
@@ -121,6 +124,7 @@ export class SkinningAnimation extends CanvasAnimation {
     if (this.scene.meshes.length === 0) { return; }
     this.initModel();
     this.initSkeleton(0);
+    this.initDebug();
     this.gui.reset();
   }
 
@@ -204,7 +208,9 @@ export class SkinningAnimation extends CanvasAnimation {
       1 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[index].getBoneIndexAttribute());
      this.skeletonRenderPass[index].addAttribute("highlight", 1, this.ctx.FLOAT, false,
        1 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[index].getHighlightedBones());
-
+    
+    console.log (this.scene.meshes[index].getBoneIndices());
+    console.log (this.scene.meshes[index].getBonePositions());
     this.skeletonRenderPass[index].addUniform("mWorld",
       (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
         gl.uniformMatrix4fv(loc, false, new Float32Array(Mat4.identity.all()));
@@ -232,7 +238,29 @@ export class SkinningAnimation extends CanvasAnimation {
     
   }
 
-  
+  public initDebug() {
+    this.debugPass.setIndexBufferData(new Uint32Array([]));
+
+    this.debugPass.addAttribute("vertPosition", 3, this.ctx.FLOAT, false,
+      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, new Float32Array([]));
+
+    this.debugPass.addUniform("mWorld",
+      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
+        gl.uniformMatrix4fv(loc, false, new Float32Array(Mat4.identity.all()));
+    });
+    this.debugPass.addUniform("mProj",
+      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
+        gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.projMatrix().all()));
+    });
+    this.debugPass.addUniform("mView",
+      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
+        gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.viewMatrix().all()));
+    });
+
+    this.debugPass.setDrawData(this.ctx.LINES,
+      0, this.ctx.UNSIGNED_INT, 0);
+    this.debugPass.setup();
+  }
   /**
    * Sets up the floor drawing
    */
@@ -335,9 +363,17 @@ export class SkinningAnimation extends CanvasAnimation {
       this.sceneRenderPass.draw();
       gl.disable(gl.DEPTH_TEST);
       this.skeletonRenderPass[0].draw();
+      this.skeletonRenderPass[0].updateAttr("highlight", this.scene.meshes[0].getHighlightedBones());
+      this.debugPass.draw();
+      let data = new Float32Array(this.gui.debugLines);
+      //console.log (data);
+      this.debugPass.updateAttr("vertPosition", data);
+
+      this.debugPass.updateIndex(new Uint32Array([...Array(data.length / 3).keys()]))
+      this.debugPass.setDrawData(this.ctx.LINES,
+       data.length / 3, this.ctx.UNSIGNED_INT, 0);      
       // TODO
       // Also draw the highlighted bone (if applicable)
-      gl.enable(gl.DEPTH_TEST);      
     }
   }
 

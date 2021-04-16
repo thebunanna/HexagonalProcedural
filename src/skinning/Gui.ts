@@ -2,7 +2,7 @@ import { Camera } from "../lib/webglutils/Camera.js";
 import { CanvasAnimation } from "../lib/webglutils/CanvasAnimation.js";
 import { SkinningAnimation } from "./App.js";
 import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
-import { Bone } from "./Scene.js";
+import { Bone, Mesh, Ray } from "./Scene.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
 import { Vector2 } from "../lib/threejs/src/Three.js";
 
@@ -37,6 +37,9 @@ export class GUI implements IGUI {
   private ctx: HTMLCanvasElement;
   private center: Vec3;
   private camera: Camera;
+  private mesh: Mesh[];
+
+  //Do note that this should be changed lateR?
   private dragging: boolean;
   private fps: boolean;
   private prevX: number;
@@ -56,6 +59,9 @@ export class GUI implements IGUI {
   public hoverX: number = 0;
   public hoverY: number = 0;
 
+  public debugLines: number[];
+  public debug: boolean = false;
+  
 
   /**
    *
@@ -74,7 +80,7 @@ export class GUI implements IGUI {
     //center in terms of world coords. will not work if scrolled.
     this.center = new Vec3([size.width / 2 + size.x, this.viewPortHeight / 2 + size.y, 0])
     this.animation = animation;
-    
+
     this.reset();
     
     this.registerEventListeners(canvas);
@@ -110,6 +116,7 @@ export class GUI implements IGUI {
       0.1,
       1000.0
     );
+    this.debugLines = []
   }
 
   /**
@@ -158,6 +165,23 @@ export class GUI implements IGUI {
     this.dragging = true;
     this.prevX = mouse.screenX;
     this.prevY = mouse.screenY;
+    
+
+    if (this.debug) {
+      let dif = Vec3.difference(new Vec3([mouse.clientX, mouse.clientY, 0]), this.center);
+      let pos = this.camera.pos()
+      let dir = this.camera.forward();
+      dir.negate();
+
+      
+      // dir.scale(this.camera.zNear());
+      // dir = Vec3.sum(dif, dir);
+      this.debugLines.push(pos.x, pos.y, pos.z)
+      // dir.normalize();
+      dir.scale(100);
+      pos = Vec3.sum(pos, dir);
+      this.debugLines.push(pos.x, pos.y, pos.z)
+    }
     
   }
 
@@ -223,8 +247,39 @@ export class GUI implements IGUI {
     // You will want logic here:
     // 1) To highlight a bone, if the mouse is hovering over a bone;
     // 2) To rotate a bone, if the mouse button is pressed and currently highlighting a bone.
-    let dif = Vec3.difference(this.center, new Vec3([mouse.clientX, mouse.clientY, 0]));
-    console.log (dif.x, dif.y, dif.z);
+    let pos = this.camera.pos()
+    
+
+    //let dif = Vec3.difference(new Vec3([mouse.clientX, mouse.clientY, -1]), this.center);
+    let mouseNDC = new Vec4 ([(2 * mouse.clientX / this.width) - 1, 1 - (2 * mouse.clientY/this.viewPortHeight),-1, 1]);
+    let cc = this.camera.projMatrix().inverse().multiplyVec4(mouseNDC);
+    let mw = this.camera.viewMatrix().inverse().multiplyVec4(cc);
+    mw.scale(1 / mw.w);
+
+    console.log (mw.x, mw.y, mw.z);
+
+    let dir = Vec3.difference(new Vec3 ([mw.x, mw.y, mw.z]), pos);
+    dir.normalize();
+    let r : Ray = new Ray(pos, dir);
+    
+    this.animation.getScene().meshes.forEach(m => {
+      let bIndex = -1;
+      let time = -1;
+      m.bones.forEach((bone, idx) => {
+        let t = bone.intersect(0.3, r);
+        
+        if (t > 0 && (t < time || bIndex == -1)) {
+          console.log (t);
+          time = t;
+          bIndex = idx;
+        }
+      });
+      if (bIndex != -1) {
+        m.setHighlight(bIndex);
+      }
+      else {
+      }
+    });
   }
 
   public getModeString(): string {
@@ -279,6 +334,10 @@ export class GUI implements IGUI {
       }
       case "Digit7": {
         this.animation.setScene("/static/assets/skinning/wolf.dae");
+        break;
+      }
+      case "Digit8": {
+        this.debug = !this.debug;
         break;
       }
       case "KeyW": {
