@@ -209,8 +209,6 @@ export class SkinningAnimation extends CanvasAnimation {
      this.skeletonRenderPass[index].addAttribute("highlight", 1, this.ctx.FLOAT, false,
        1 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[index].getHighlightedBones());
     
-    console.log (this.scene.meshes[index].getBoneIndices());
-    console.log (this.scene.meshes[index].getBonePositions());
     this.skeletonRenderPass[index].addUniform("mWorld",
       (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
         gl.uniformMatrix4fv(loc, false, new Float32Array(Mat4.identity.all()));
@@ -364,7 +362,7 @@ export class SkinningAnimation extends CanvasAnimation {
       gl.disable(gl.DEPTH_TEST);
       this.skeletonRenderPass[0].draw();
       this.skeletonRenderPass[0].updateAttr("highlight", this.scene.meshes[0].getHighlightedBones());
-      this.scene.meshes[0].rotateBone(Quat.fromAxisAngle(new Vec3([1,0,0]), 0.01), 0);
+      this.scene.meshes[0].rotateBone(Quat.fromAxisAngle(new Vec3([1,1,0]), 0.01), 0);
       
       // this.debugPass.draw();
       // let data = new Float32Array(this.gui.debugLines);

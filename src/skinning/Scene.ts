@@ -71,14 +71,19 @@ export class Bone {
   
   public initialPosition: Vec3; // position of the bone's joint *in world coordinates*
   public initialEndpoint: Vec3; // position of the bone's second (non-joint) endpoint, in world coordinates
-  public initialRotation: Quat;
 
+  private localPosition: Vec3 = new Vec3([0,0,0]);
+  private localEndpoint: Vec3;
   public offset: number; // used when parsing the Collada file---you probably don't need to touch these
   public initialTransformation: Mat4;
 
   public B: Mat4;
   public T: Quat;
+  private D : Mat4;
+  private U : Mat4;
+
   public isHighlight : boolean;
+  private isDirty : boolean;
 
   constructor(bone: BoneLoader, mesh: Mesh) {
     this.mesh = mesh;
@@ -89,14 +94,16 @@ export class Bone {
     this.rotation = bone.rotation.copy();
     this.offset = bone.offset;
 
-    this.initialRotation = this.rotation.copy();
     this.initialPosition = bone.initialPosition.copy();
     this.initialEndpoint = bone.initialEndpoint.copy();
+    this.localEndpoint = Vec3.difference (this.initialEndpoint, this.initialPosition);
     this.initialTransformation = bone.initialTransformation.copy();
 
     this.T = Quat.identity.copy();
-
+    this.D = null;
+    this.U = null;
     this.isHighlight = false;
+    this.isDirty = true;
   }
 
   public init () : void {
@@ -117,7 +124,29 @@ export class Bone {
     
   }
 
+  public UMat() : Mat4 {
+    if (this.U != null) {
+      return this.U;
+    }
+
+    if (this.parent == -1) {
+      let iden = Mat4.identity.all()
+      iden[12] = this.position.x;
+      iden[13] = this.position.y;
+      iden[14] = this.position.z;
+      return new Mat4(iden);
+    }
+    let dprev : Mat4;
+
+    dprev = this.mesh.bones[this.parent].UMat();
+    this.U = Mat4.product(dprev, this.B);
+    return this.U
+  }
+
   public DMat() : Mat4 {
+    if (this.D != null) {
+      return this.D;
+    }
 
     let dprev : Mat4;
     if (this.parent == -1) {
@@ -125,13 +154,14 @@ export class Bone {
       iden[12] = this.position.x;
       iden[13] = this.position.y;
       iden[14] = this.position.z;
-      let a = new Mat4(iden);
-      a.multiply(this.T.toMat4());
-      return a;
+      this.D = new Mat4(iden);
+      this.D.multiply(this.T.toMat4());
+      return this.D;
     }
 
     dprev = this.mesh.bones[this.parent].DMat();
-    return Mat4.product(dprev, Mat4.product(this.B, this.T.toMat4()))
+    this.D = Mat4.product(dprev, Mat4.product(this.B, this.T.toMat4()));
+    return this.D
   }
 
   public VMat() : Quat {
@@ -139,7 +169,6 @@ export class Bone {
       return this.T.copy();
     }
     let vprev = this.mesh.bones[this.parent].VMat();
-    console.log (vprev, this.T)
     return Quat.product(vprev, this.T)
   }
 
@@ -151,7 +180,10 @@ export class Bone {
   }
 
   public updatePosition() : void {
-    this.position = this.DMat().multiplyPt3(new Vec3([0,0,0]));
+    this.D = null;
+    let D = this.DMat();
+    this.position = D.multiplyPt3(this.localPosition);
+    this.endpoint = D.multiplyPt3(this.localEndpoint);
     this.children.forEach(child => {
       this.mesh.bones[child].updatePosition();
     });
@@ -292,5 +324,26 @@ export class Mesh {
       }
     });
     return trans;
+  }
+
+  public getBoneDMat(): Float32Array {
+    let Dmats = new Float32Array(16 * this.bones.length);
+    this.bones.forEach((bone, index) => {
+      let res = bone.DMat().all();
+      for (let i = 0; i < res.length; i++) {
+        Dmats[16 * index + i] = res[i];
+      }
+    });
+    return Dmats;
+  }
+  public getBoneUMat(): Float32Array {
+    let Umats = new Float32Array(16 * this.bones.length);
+    this.bones.forEach((bone, index) => {
+      let res = bone.UMat().all();
+      for (let i = 0; i < res.length; i++) {
+        Umats[16 * index + i] = res[i];
+      }
+    });
+    return Umats;
   }
 }
