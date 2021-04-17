@@ -256,7 +256,7 @@ export class GUI implements IGUI {
     let mw = this.camera.viewMatrix().inverse().multiplyVec4(cc);
     mw.scale(1 / mw.w);
 
-    console.log (mw.x, mw.y, mw.z);
+    //console.log (mw.x, mw.y, mw.z);
 
     let dir = Vec3.difference(new Vec3 ([mw.x, mw.y, mw.z]), pos);
     dir.normalize();
@@ -269,16 +269,14 @@ export class GUI implements IGUI {
         let t = bone.intersect(0.3, r);
         
         if (t > 0 && (t < time || bIndex == -1)) {
-          console.log (t);
+          //console.log (t);
           time = t;
           bIndex = idx;
         }
       });
-      if (bIndex != -1) {
-        m.setHighlight(bIndex);
-      }
-      else {
-      }
+      m.setHighlight(bIndex);
+      
+
     });
   }
 
@@ -431,5 +429,13 @@ export class GUI implements IGUI {
     canvas.addEventListener("contextmenu", (event: any) =>
       event.preventDefault()
     );
+  }
+  private registerRangeListenrs(): void {
+    let xrange = document.getElementById("xrange") as HTMLInputElement;
+    let yrange = document.getElementById("yrange") as HTMLInputElement;
+    let zrange = document.getElementById("zrange") as HTMLInputElement;
+    xrange.addEventListener("change", (event: any) => {
+      
+    })
   }
 }

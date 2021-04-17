@@ -17,7 +17,7 @@ import {
   debugVSText,
   debugFSText
 } from "./Shaders.js";
-import { Mat4, Vec4, Vec3 } from "../lib/TSM.js";
+import { Mat4, Vec4, Vec3, Quat } from "../lib/TSM.js";
 import { CLoader } from "./AnimationFileLoader.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
 import { Camera } from "../lib/webglutils/Camera.js";
@@ -364,14 +364,14 @@ export class SkinningAnimation extends CanvasAnimation {
       gl.disable(gl.DEPTH_TEST);
       this.skeletonRenderPass[0].draw();
       this.skeletonRenderPass[0].updateAttr("highlight", this.scene.meshes[0].getHighlightedBones());
-      this.debugPass.draw();
-      let data = new Float32Array(this.gui.debugLines);
-      //console.log (data);
-      this.debugPass.updateAttr("vertPosition", data);
+      this.scene.meshes[0].rotateBone(Quat.fromAxisAngle(new Vec3([1,0,0]), 0.01), 0);
+      
+      // this.debugPass.draw();
+      // let data = new Float32Array(this.gui.debugLines);
+      // this.debugPass.updateAttr("vertPosition", data);
 
-      this.debugPass.updateIndex(new Uint32Array([...Array(data.length / 3).keys()]))
-      this.debugPass.setDrawData(this.ctx.LINES,
-       data.length / 3, this.ctx.UNSIGNED_INT, 0);      
+      // this.debugPass.updateIndex(new Uint32Array([...Array(data.length / 3).keys()]))
+      // this.debugPass.setDrawData(this.ctx.LINES, data.length / 3, this.ctx.UNSIGNED_INT, 0);      
       // TODO
       // Also draw the highlighted bone (if applicable)
     }

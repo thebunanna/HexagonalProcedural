@@ -62,6 +62,7 @@ export class Ray {
 }
 
 export class Bone {
+  public mesh: Mesh;
   public parent: number;
   public children: number[];
   public position: Vec3; // current position of the bone's joint *in world coordinates*. Used by the provided skeleton shader, so you need to keep this up to date.
@@ -70,23 +71,90 @@ export class Bone {
   
   public initialPosition: Vec3; // position of the bone's joint *in world coordinates*
   public initialEndpoint: Vec3; // position of the bone's second (non-joint) endpoint, in world coordinates
+  public initialRotation: Quat;
 
   public offset: number; // used when parsing the Collada file---you probably don't need to touch these
   public initialTransformation: Mat4;
 
+  public B: Mat4;
+  public T: Quat;
   public isHighlight : boolean;
 
-  constructor(bone: BoneLoader) {
+  constructor(bone: BoneLoader, mesh: Mesh) {
+    this.mesh = mesh;
     this.parent = bone.parent;
     this.children = Array.from(bone.children);
     this.position = bone.position.copy();
     this.endpoint = bone.endpoint.copy();
     this.rotation = bone.rotation.copy();
     this.offset = bone.offset;
+
+    this.initialRotation = this.rotation.copy();
     this.initialPosition = bone.initialPosition.copy();
     this.initialEndpoint = bone.initialEndpoint.copy();
     this.initialTransformation = bone.initialTransformation.copy();
+
+    this.T = Quat.identity.copy();
+
     this.isHighlight = false;
+  }
+
+  public init () : void {
+    let iden = Mat4.identity.all()
+    iden[12] = this.position.x;
+    iden[13] = this.position.y;
+    iden[14] = this.position.z;
+    if (this.parent == -1) {
+      this.B = new Mat4(iden);
+    }
+    else {
+      let pbone = this.mesh.bones[this.parent];
+      iden[12] -= pbone.position.x;
+      iden[13] -= pbone.position.y;
+      iden[14] -= pbone.position.z;
+      this.B = new Mat4(iden);
+    }
+    
+  }
+
+  public DMat() : Mat4 {
+
+    let dprev : Mat4;
+    if (this.parent == -1) {
+      let iden = Mat4.identity.all()
+      iden[12] = this.position.x;
+      iden[13] = this.position.y;
+      iden[14] = this.position.z;
+      let a = new Mat4(iden);
+      a.multiply(this.T.toMat4());
+      return a;
+    }
+
+    dprev = this.mesh.bones[this.parent].DMat();
+    return Mat4.product(dprev, Mat4.product(this.B, this.T.toMat4()))
+  }
+
+  public VMat() : Quat {
+    if (this.parent == -1) {
+      return this.T.copy();
+    }
+    let vprev = this.mesh.bones[this.parent].VMat();
+    console.log (vprev, this.T)
+    return Quat.product(vprev, this.T)
+  }
+
+  public updateRotation() : void {
+    this.rotation = this.VMat();
+    this.children.forEach(child => {
+      this.mesh.bones[child].updateRotation();
+    });
+  }
+
+  public updatePosition() : void {
+    this.position = this.DMat().multiplyPt3(new Vec3([0,0,0]));
+    this.children.forEach(child => {
+      this.mesh.bones[child].updatePosition();
+    });
   }
 
   public intersect(width : number, r : Ray) : number {
@@ -142,8 +210,14 @@ export class Mesh {
     this.rotation = mesh.rotation.copy();
     this.bones = [];
     mesh.bones.forEach(bone => {
-      this.bones.push(new Bone(bone));
+      this.bones.push(new Bone(bone, this));
     });
+    this.bones.forEach(bone => {
+      bone.init();
+    });
+    this.bones[0].updatePosition();
+    this.bones[0].updateRotation();
+
     this.materialName = mesh.materialName;
     this.imgSrc = null;
     this.boneIndices = Array.from(mesh.boneIndices);
@@ -171,6 +245,20 @@ export class Mesh {
     });
 
     return new Float32Array(harray);
+  }
+
+  public rotateBone(rot: Quat, index : number): void {
+
+    let b = this.bones[index]
+    b.T.multiply(rot);
+    //b.position = b.DMat().multiplyPt3(new Vec3([0,0,0]));
+    // b.children.forEach(child => {
+    //   this.bones[child].position = this.bones[child].DMat().multiplyPt3(new Vec3([0,0,0]));
+      
+    // });
+    b.updatePosition();
+    b.updateRotation();
+
   }
 
   public setHighlight(index : number): void {

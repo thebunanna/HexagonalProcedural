@@ -6,18 +6,27 @@
     <title>WebGL - Skinning</title>
   </head>
   <body>
-    <div class="container">
-      <canvas id="glCanvas" class="card" width="800" height="800">
-        Your browser does not support HTML5 </canvas
-      >
-      <canvas id="textCanvas" width="800" height="800">
-        Your browser does not support HTML5 </canvas
-      >
+    <div>
+      <div class="container">
+        <canvas id="glCanvas" class="card" width="800" height="800">
+          Your browser does not support HTML5 </canvas
+        >
+        <canvas id="textCanvas" width="800" height="800">
+          Your browser does not support HTML5 </canvas
+        >
+  
+      </div>
+      <div>
+        <input type="range" min="-180" max="180" value="0" class="slider" id="xrange">
+        <input type="range" min="-180" max="180" value="0" class="slider" id="yrange">
+        <input type="range" min="-180" max="180" value="0" class="slider" id="zrange">
 
+      </div>
     </div>
+    
     <br />
 <script type="module" src="./index.js"></script>
-
+  
     <br />
   </body>
 </html>
