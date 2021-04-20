@@ -96,7 +96,11 @@ export const sceneVSText = `
         lightDir = lightPosition - worldPosition;
         
         vec4 aNorm4 = vec4(aNorm, 0.0);
-        normal = normalize(mWorld * vec4(aNorm, 0.0));
+        vec4 norm = skinWeights.x * vec4(qtrans(jRots[xi], aNorm), 0.0)
+         + skinWeights.y * vec4(qtrans(jRots[yi], aNorm), 0.0)
+         + skinWeights.z * vec4(qtrans(jRots[zi], aNorm), 0.0)
+         + skinWeights.w * vec4(qtrans(jRots[wi], aNorm), 0.0);
+        normal = normalize(mWorld * norm);
 
         uv = aUV;
     }
@@ -140,6 +144,7 @@ export const skeletonVSText = `
         gl_Position = mProj * mView * mWorld * vec4(bTrans[index] + qtrans(bRots[index], vertPosition), 1.0);
         high = highlight;
     }
+    
 `;
 
 export const skeletonFSText = `

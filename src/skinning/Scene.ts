@@ -1,4 +1,4 @@
-import { Mat4, Quat, Vec3 } from "../lib/TSM.js";
+import { Mat3, Mat4, Quat, Vec3 } from "../lib/TSM.js";
 import { AttributeLoader, MeshGeometryLoader, BoneLoader, MeshLoader } from "./AnimationFileLoader.js";
 
 export class Attribute {
@@ -61,6 +61,58 @@ export class Ray {
   }
 }
 
+export class KeyFrame {
+  public length: number;
+  public rotations: Quat[];
+  public translations: Vec3[];
+
+  public rOri: Quat[];
+  public tOri: Mat4[];
+  constructor (rotations: Quat[], translations: Vec3[]) {
+    this.length = 1.0;
+    this.rotations = [];
+    this.translations = [];
+    this.rOri = [];
+    this.tOri = [];
+    rotations.forEach(rot => {
+      this.rotations.push(rot.copy());
+    });
+    translations.forEach(t => {
+      this.translations.push(t.copy());
+    });
+  }
+
+  public setLength (t : number) {
+    this.length = t;
+  }
+
+  public getLength () : number {
+    return this.length;
+  }
+
+  public init (mesh : Mesh) {
+    mesh.bones.forEach(b => {
+      this.rOri.push(b.T);
+      this.tOri.push(b.B);
+    });
+
+  }
+
+  public reset () {
+    this.rOri = [];
+    this.tOri = [];
+  }
+
+  public slerp (time : number) : Quat[] {
+    time = time / this.length;
+    let rots = []
+    for (let i = 0; i < this.rotations.length; i++) {
+      rots.push (Quat.slerpShort(this.rOri[i], this.rotations[i], time));
+    }
+    return rots;
+  }
+}
+
 export class Bone {
   public mesh: Mesh;
   public parent: number;
@@ -104,6 +156,28 @@ export class Bone {
     this.U = null;
     this.isHighlight = false;
     this.isDirty = true;
+  }
+
+  public getDir() : Vec3 {
+    let a = Vec3.difference(this.endpoint, this.position);
+    a.normalize();
+    return a;
+  }
+
+  public getOrtho() : Mat3 {
+    let v1 = Vec3.difference (this.position, this.endpoint);
+    let v2 : Vec3;
+    if (v1.z != 0) {
+      v2 = new Vec3 ([0.5,0.5, (v1.x * -0.5 + v1.y * -0.5) / v1.z])
+    }
+    else if (v1.x != 0) {
+      v2 = new Vec3 ([(v1.y * -0.5 + v1.z * -0.5) / v1.x, 0.5, 0.5])
+    }
+    else if (v1.y != 0) {
+      v2 = new Vec3 ([0.5, (v1.z * -0.5 + v1.x * -0.5) / v1.y, 0.5])
+    }
+
+    return new Mat3([...v1.xyz, ...v2.xyz, ...Vec3.cross(v1,v2).xyz]);
   }
 
   public init () : void {
@@ -150,7 +224,7 @@ export class Bone {
 
     let dprev : Mat4;
     if (this.parent == -1) {
-      let iden = Mat4.identity.all()
+      let iden = Mat4.identity.copy().all()
       iden[12] = this.position.x;
       iden[13] = this.position.y;
       iden[14] = this.position.z;
@@ -190,16 +264,28 @@ export class Bone {
   }
 
   public intersect(width : number, r : Ray) : number {
-    let ba : Vec3 = Vec3.difference (this.position,this.endpoint);
 
-    let oc : Vec3 = Vec3.difference (r.getOrigin(), r.getDir());
+    let axis = new Mat3([0,0,1 , 1,0,0 , 0,1,0]);
+    let R = Mat3.product(axis, this.getOrtho().inverse()); 
+
+    //let lp = R.copy().multiplyVec3(this.position);
+    //let le = R.copy().multiplyVec3(this.endpoint);
+
+    let ba : Vec3 = Vec3.difference (this.position, this.endpoint);
+    
+    let dir = r.getDir();
+    //dir = R.copy().multiplyVec3(dir);
+    let pos = r.getOrigin();
+    //pos = R.copy().multiplyVec3(pos);
+
+    let oc : Vec3 = Vec3.difference (pos, dir);
 
     let baba : number = Vec3.dot(ba,ba);
-    let bard : number = Vec3.dot(ba,r.getDir());
+    let bard : number = Vec3.dot(ba,dir);
     let baoc : number = Vec3.dot(ba,oc);
     
     let k2 = baba            - bard*bard;
-    let k1 = baba*Vec3.dot(oc,r.getDir()) - baoc*bard;
+    let k1 = baba*Vec3.dot(oc,dir) - baoc*bard;
     let k0 = baba*Vec3.dot(oc,oc) - baoc*baoc - width*width*baba;
     
     let h = k1*k1 - k2*k0;
@@ -231,24 +317,31 @@ export class Mesh {
   public materialName: string;
   public imgSrc: String | null;
 
+
   private boneIndices: number[];
   private bonePositions: Float32Array;
   private boneIndexAttribute: Float32Array;
   private hboneIndex: number = 0;
-  
+  private changes: Quat[]
+
   constructor(mesh: MeshLoader) {
     this.geometry = new MeshGeometry(mesh.geometry);
     this.worldMatrix = mesh.worldMatrix.copy();
     this.rotation = mesh.rotation.copy();
     this.bones = [];
+    this.changes = [];
     mesh.bones.forEach(bone => {
       this.bones.push(new Bone(bone, this));
+      this.changes.push(Quat.identity.copy())
     });
     this.bones.forEach(bone => {
       bone.init();
     });
+    //this.bones[0].position = Vec3.sum (this.bones[0].position, new Vec3([1,1,1]));
     this.bones[0].updatePosition();
     this.bones[0].updateRotation();
+    
+    
 
     this.materialName = mesh.materialName;
     this.imgSrc = null;
@@ -290,20 +383,58 @@ export class Mesh {
     // });
     b.updatePosition();
     b.updateRotation();
+    this.changes[index].multiply(rot)
+  }
 
+  public applyKeyFrame(key : KeyFrame, time: number): void {
+    //assumes init was called on keyframe.
+    key.slerp(time).forEach((rot, ind) => {
+      this.bones[ind].T = rot;
+      this.bones[ind].updatePosition();
+      this.bones[ind].updateRotation();
+    });
+  }
+
+  public setKeyFrame(key : KeyFrame): void {
+    //applies key frame to current mesh.
+    key.init(this);
+    this.applyKeyFrame(key, key.getLength());
+  }
+
+  public createKeyFrame() : KeyFrame {
+    let rots = []
+    this.bones.forEach(b => {
+      rots.push(b.T)
+    });
+    let key = new KeyFrame(rots, []);
+    this.changes = [];
+    this.bones.forEach(bone => {
+      this.changes.push(Quat.identity.copy())
+    });
+    return key;
   }
 
   public setHighlight(index : number): void {
     if (index == -1) {
-      this.bones[this.hboneIndex].isHighlight = false;
-      this.hboneIndex = 0;
+      if (this.hboneIndex != -1) {
+        this.bones[this.hboneIndex].isHighlight = false;
+      }
+        
+      this.hboneIndex = index;
       return;
     }
-    console.log (this.hboneIndex);
-    this.bones[this.hboneIndex].isHighlight = false;
+    if (this.hboneIndex != -1) {
+      this.bones[this.hboneIndex].isHighlight = false;
+    }
+
     this.bones[index].isHighlight = true;
     this.hboneIndex = index;
   }
+
+  public getHighlight () : number {
+    return this.hboneIndex;
+  }
+
   public getBoneTranslations(): Float32Array {
     let trans = new Float32Array(3 * this.bones.length);
     this.bones.forEach((bone, index) => {

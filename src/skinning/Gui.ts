@@ -2,7 +2,7 @@ import { Camera } from "../lib/webglutils/Camera.js";
 import { CanvasAnimation } from "../lib/webglutils/CanvasAnimation.js";
 import { SkinningAnimation } from "./App.js";
 import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
-import { Bone, Mesh, Ray } from "./Scene.js";
+import { Bone, KeyFrame, Mesh, Ray } from "./Scene.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
 import { Vector2 } from "../lib/threejs/src/Three.js";
 
@@ -34,7 +34,7 @@ export class GUI implements IGUI {
   private static readonly rollSpeed: number = 0.1;
   private static readonly panSpeed: number = 0.1;
 
-  private ctx: HTMLCanvasElement;
+  private ctx: DOMRect;
   private center: Vec3;
   private camera: Camera;
   private mesh: Mesh[];
@@ -62,7 +62,7 @@ export class GUI implements IGUI {
   public debugLines: number[];
   public debug: boolean = false;
   
-
+  public keyframes : KeyFrame[];
   /**
    *
    * @param canvas required to get the width and height of the canvas
@@ -75,28 +75,42 @@ export class GUI implements IGUI {
     this.width = canvas.width;
     this.prevX = 0;
     this.prevY = 0;
-    this.ctx = canvas;
-    let size = canvas.getBoundingClientRect();
+    this.ctx = canvas.getBoundingClientRect();;
     //center in terms of world coords. will not work if scrolled.
-    this.center = new Vec3([size.width / 2 + size.x, this.viewPortHeight / 2 + size.y, 0])
+    //this.center = new Vec3([size.width / 2 + size.x, this.viewPortHeight / 2 + size.y, 0])
     this.animation = animation;
-
+    
     this.reset();
     
     this.registerEventListeners(canvas);
   }
 
+  public getKeyFrameLengths () : number[] {
+    let b = []
+    this.keyframes.forEach(k => {
+      b.push (k.getLength());
+    });
+    return b
+  }
+
   public getNumKeyFrames(): number {
     // TODO
     // Used in the status bar in the GUI
-    return 0;
+    return this.keyframes.length;
   }
   public getTime(): number { return this.time; }
   
   public getMaxTime(): number { 
     // TODO
     // The animation should stop after the last keyframe
-    return 0;
+    let total = 0;
+    this.keyframes.forEach((k, ind) => {
+      if (ind != 0) {
+        total += k.getLength();
+      }
+      
+    });
+    return total * 1000;
   }
 
   /**
@@ -116,7 +130,9 @@ export class GUI implements IGUI {
       0.1,
       1000.0
     );
-    this.debugLines = []
+    this.debugLines = [];
+    this.keyframes = [];
+
   }
 
   /**
@@ -168,22 +184,12 @@ export class GUI implements IGUI {
     
 
     if (this.debug) {
-      let dif = Vec3.difference(new Vec3([mouse.clientX, mouse.clientY, 0]), this.center);
-      let pos = this.camera.pos()
-      let dir = this.camera.forward();
-      dir.negate();
-
       
-      // dir.scale(this.camera.zNear());
-      // dir = Vec3.sum(dif, dir);
-      this.debugLines.push(pos.x, pos.y, pos.z)
-      // dir.normalize();
-      dir.scale(100);
-      pos = Vec3.sum(pos, dir);
-      this.debugLines.push(pos.x, pos.y, pos.z)
     }
     
   }
+
+  private prevind = 0;
 
   public incrementTime(dT: number): void {
     if (this.mode === Mode.playback) {
@@ -191,6 +197,31 @@ export class GUI implements IGUI {
       if (this.time >= this.getMaxTime()) {
         this.time = 0;
         this.mode = Mode.edit;
+        this.prevind = 0;
+      }
+      else {
+        let m = this.animation.getScene().meshes[0];
+
+        let total = 0
+        let i = 1;
+        for (; i < this.keyframes.length; i++) {
+          if (this.keyframes[i].getLength() * 1000 + total >= this.time) {
+            break;
+          }
+          else {
+            total += this.keyframes[i].getLength() * 1000;
+          }
+        }
+
+        i -= 1;
+        if (this.prevind != i) {
+          m.setKeyFrame(this.keyframes[this.prevind+1])
+          this.prevind = i;
+          this.keyframes[i+1].init(m);
+        }
+        let t = (this.time - total) / 1000;
+
+        m.applyKeyFrame(this.keyframes[i + 1], t);
       }
     }
   }
@@ -234,7 +265,19 @@ export class GUI implements IGUI {
         }
         case 2: {
           /* Right button, or secondary button */
-          this.camera.offsetDist(Math.sign(mouseDir.y) * GUI.zoomSpeed);
+          let m = this.animation.getScene().meshes[0];
+
+          let index = m.getHighlight();
+          if (index != -1) {
+            let axis = Vec3.cross (mouseDir, m.bones[index].getDir());
+            let mat = m.bones[index].VMat().toMat4();
+            m.rotateBone(Quat.fromAxisAngle(mat.multiplyVec3(axis), 0.1), index);
+            return;
+          }
+          else {
+            this.camera.offsetDist(Math.sign(mouseDir.y) * GUI.zoomSpeed);
+          }
+          
           break;
         }
         default: {
@@ -360,6 +403,7 @@ export class GUI implements IGUI {
       }
       case "KeyR": {
         this.animation.reset();
+        this.keyframes = [];
         break;
       }
       case "ArrowLeft": {
@@ -380,8 +424,11 @@ export class GUI implements IGUI {
       }
       case "KeyK": {
         if (this.mode === Mode.edit) {
-            // TODO
-            // Add keyframe
+          let k = this.animation.getScene().meshes[0].createKeyFrame();
+          let time = document.getElementById("time") as HTMLInputElement;
+          
+          k.setLength(+time.value);
+          this.keyframes.push(k);
         }
         break;
       }      
@@ -389,6 +436,8 @@ export class GUI implements IGUI {
         if (this.mode === Mode.edit && this.getNumKeyFrames() > 1)
         {
           this.mode = Mode.playback;
+          this.animation.getScene().meshes[0].setKeyFrame(this.keyframes[0]);
+          this.keyframes[1].init(this.animation.getScene().meshes[0]);
           this.time = 0;
         } else if (this.mode === Mode.playback) {
           this.mode = Mode.edit;

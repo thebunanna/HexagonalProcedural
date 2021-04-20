@@ -313,9 +313,9 @@ export class SkinningAnimation extends CanvasAnimation {
     let curr = new Date().getTime();
     let deltaT = curr - this.millis;
     this.millis = curr;
-    deltaT /= 1000;
+    //
     this.getGUI().incrementTime(deltaT);
-
+    deltaT /= 1000;
     // TODO
     // If the mesh is animating, probably you want to do some updating of the skeleton state here
     
@@ -323,6 +323,27 @@ export class SkinningAnimation extends CanvasAnimation {
     if (this.ctx2) {
       this.ctx2.clearRect(0, 0, this.ctx2.canvas.width, this.ctx2.canvas.height);
       if (this.scene.meshes.length > 0) {
+        this.ctx2.fillStyle = "#000000";
+        this.ctx2.fillRect(20, 650, 2, 100);
+        this.ctx2.fillRect(this.ctx2.canvas.width - 20, 650, 2, 100);
+        const len = this.getGUI().getKeyFrameLengths();
+        let total = 0;
+        for (let i = 1; i < len.length; i++) {
+          total += len[i]
+        }
+        let tick = (this.ctx2.canvas.width - 40) / total;
+        let tTotal = 0;
+        this.ctx2.fillStyle = "#FFFFFF";
+
+        for (let i = 1; i < len.length; i++) {
+          this.ctx2.fillRect(20 + tTotal + tick * len[i], 650, 2, 100);
+          tTotal += tick * len[i];
+        }
+        this.ctx2.fillStyle = "#FF0000";
+        this.ctx2.fillRect(20 + tick * this.getGUI().getTime() / 1000, 660, 2, 80);
+        this.ctx2.fillStyle = "#FFFFFF";
+
+        //this.ctx2.fillRect((this.ctx2.canvas.width / 2) - 1, 600, 2, 200);
         this.ctx2.fillText(this.getGUI().getModeString(), 50, 710);
       }
     }
@@ -362,7 +383,7 @@ export class SkinningAnimation extends CanvasAnimation {
       gl.disable(gl.DEPTH_TEST);
       this.skeletonRenderPass[0].draw();
       this.skeletonRenderPass[0].updateAttr("highlight", this.scene.meshes[0].getHighlightedBones());
-      this.scene.meshes[0].rotateBone(Quat.fromAxisAngle(new Vec3([1,1,0]), 0.01), 0);
+      //this.scene.meshes[0].rotateBone(Quat.fromAxisAngle(new Vec3([1,1,0]), 0.01), 0);
       
       // this.debugPass.draw();
       // let data = new Float32Array(this.gui.debugLines);
@@ -392,6 +413,11 @@ export class SkinningAnimation extends CanvasAnimation {
 
 export function initializeCanvas(): void {
   const canvas = document.getElementById("glCanvas") as HTMLCanvasElement;
+  const slider = document.getElementById("time") as HTMLInputElement;
+  slider.addEventListener("change", (event) => {
+    const num = document.getElementById("num") as HTMLParagraphElement;
+    num.innerHTML = (<HTMLInputElement>event.target).value;
+  })
   /* Start drawing */
   const canvasAnimation: SkinningAnimation = new SkinningAnimation(canvas);
   canvasAnimation.start();

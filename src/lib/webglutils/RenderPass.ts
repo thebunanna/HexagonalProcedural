@@ -75,25 +75,25 @@ export class RenderPass {
     /* Setup Attributes */
     this.attributes.forEach((attr) => {
       let attrLoc = gl.getAttribLocation(this.shaderProgram, attr.name);
-      if (attrLoc != -1) {
-        let attrBuffer = this.attributeBuffers.get(attr.bufferName);
-        if (attrBuffer) {
-          attrBuffer.bufferId = gl.createBuffer() as WebGLBuffer;
-          gl.bindBuffer(gl.ARRAY_BUFFER, attrBuffer.bufferId);
-          gl.bufferData(gl.ARRAY_BUFFER, attrBuffer.data, gl.STATIC_DRAW);
-          gl.vertexAttribPointer(
-            attrLoc,
-            attr.size,
-            attr.type,
-            attr.normalized,
-            attr.stride,
-            attr.offset
-          )
-          gl.enableVertexAttribArray(attrLoc);
-        } else {
-          console.error("Attribute's buffer name not found", this);
-        }
+      
+      let attrBuffer = this.attributeBuffers.get(attr.bufferName);
+      if (attrBuffer) {
+        attrBuffer.bufferId = gl.createBuffer() as WebGLBuffer;
+        gl.bindBuffer(gl.ARRAY_BUFFER, attrBuffer.bufferId);
+        gl.bufferData(gl.ARRAY_BUFFER, attrBuffer.data, gl.STATIC_DRAW);
+        gl.vertexAttribPointer(
+          attrLoc,
+          attr.size,
+          attr.type,
+          attr.normalized,
+          attr.stride,
+          attr.offset
+        )
+        gl.enableVertexAttribArray(attrLoc);
+      } else {
+        console.error("Attribute's buffer name not found", this);
       }
+      
       
     });
 
