@@ -155,7 +155,39 @@ export const skeletonFSText = `
         gl_FragColor = vec4(1.0, high, 0.0, 1.0);
     }
 `;
+export const hexVSText = `
+    precision mediump float;
 
+    attribute vec3 vertPosition;
+    attribute vec3 aNorm;
+
+    uniform vec4 uLightPos;
+    uniform mat4 mWorld;
+    uniform mat4 mView;
+    uniform mat4 mProj;
+
+    varying vec4 lightDir;
+    varying vec4 normal;   
+
+    void main () {
+        gl_Position = mProj * mView * mWorld * vec4 (vertPosition, 1.0);
+        lightDir = uLightPos - vec4(vertPosition, 1.0);
+        normal = vec4 (aNorm, 0.0);
+    }
+`;
+
+export const hexFSText = `
+    precision mediump float;
+
+    varying vec4 lightDir;
+    varying vec4 normal;   
+
+    void main () {
+        gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+        gl_FragColor *= max (dot (normalize(lightDir), normal), 0.0);
+        gl_FragColor += vec4 (0,0,0, 1.0);
+    }
+`;
 export const debugVSText = `
     precision mediump float;
 
@@ -174,7 +206,7 @@ export const debugFSText = `
     precision mediump float;
 
     void main () {
-        gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
     }
 `;
 

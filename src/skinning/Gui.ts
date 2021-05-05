@@ -30,9 +30,9 @@ export enum Mode {
 
 export class GUI implements IGUI {
   private static readonly rotationSpeed: number = 0.05;
-  private static readonly zoomSpeed: number = 0.1;
-  private static readonly rollSpeed: number = 0.1;
-  private static readonly panSpeed: number = 0.1;
+  private static readonly zoomSpeed: number = 0.2;
+  private static readonly rollSpeed: number = 0.2;
+  private static readonly panSpeed: number = 0.2;
 
   private ctx: DOMRect;
   private center: Vec3;
@@ -255,30 +255,37 @@ export class GUI implements IGUI {
         case 1: {
           let rotAxis: Vec3 = Vec3.cross(this.camera.forward(), mouseDir);
           rotAxis = rotAxis.normalize();
+          this.camera.rotate(rotAxis, GUI.rotationSpeed);
+          //console.log (this.camera.right().xyz);
+          //let r = this.camera.right();
+          // if ( Math.abs (this.camera.right().y - 1e-5) > 0) {
+          //   let plane = new Vec3 ([0,1,0])//Vec3.cross(this.camera.forward(), new Vec3 ([r.x, 0, r.z]))
+          //   let angle = Math.asin(Math.abs (Vec3.dot(plane, r)) / (plane.length() * r.length()));
+          //   console.log (angle);
+          //   if (angle <= 1) {
+          //     this.camera.rotate(this.camera.forward(), angle);
+          //   }
+          //   
 
-          if (this.fps) {
-            this.camera.rotate(rotAxis, GUI.rotationSpeed);
-          } else {
-            this.camera.orbitTarget(rotAxis, GUI.rotationSpeed);
-          }
+          // }
           break;
         }
         case 2: {
           /* Right button, or secondary button */
-          let m = this.animation.getScene().meshes[0];
+          // let m = this.animation.getScene().meshes[0];
 
-          let index = m.getHighlight();
-          if (index != -1) {
-            let axis = Vec3.cross (mouseDir, m.bones[index].getDir());
-            let mat = m.bones[index].VMat().toMat4();
-            m.rotateBone(Quat.fromAxisAngle(mat.multiplyVec3(axis), 0.1), index);
-            return;
-          }
-          else {
-            this.camera.offsetDist(Math.sign(mouseDir.y) * GUI.zoomSpeed);
-          }
+          // let index = m.getHighlight();
+          // if (index != -1) {
+          //   let axis = Vec3.cross (mouseDir, m.bones[index].getDir());
+          //   let mat = m.bones[index].VMat().toMat4();
+          //   m.rotateBone(Quat.fromAxisAngle(mat.multiplyVec3(axis), 0.1), index);
+          //   return;
+          // }
+          // else {
+          //   this.camera.offsetDist(Math.sign(mouseDir.y) * GUI.zoomSpeed);
+          // }
           
-          break;
+          // break;
         }
         default: {
           break;
@@ -290,37 +297,37 @@ export class GUI implements IGUI {
     // You will want logic here:
     // 1) To highlight a bone, if the mouse is hovering over a bone;
     // 2) To rotate a bone, if the mouse button is pressed and currently highlighting a bone.
-    let pos = this.camera.pos()
+    // let pos = this.camera.pos()
     
 
-    //let dif = Vec3.difference(new Vec3([mouse.clientX, mouse.clientY, -1]), this.center);
-    let mouseNDC = new Vec4 ([(2 * mouse.clientX / this.width) - 1, 1 - (2 * mouse.clientY/this.viewPortHeight),-1, 1]);
-    let cc = this.camera.projMatrix().inverse().multiplyVec4(mouseNDC);
-    let mw = this.camera.viewMatrix().inverse().multiplyVec4(cc);
-    mw.scale(1 / mw.w);
+    // //let dif = Vec3.difference(new Vec3([mouse.clientX, mouse.clientY, -1]), this.center);
+    // let mouseNDC = new Vec4 ([(2 * mouse.clientX / this.width) - 1, 1 - (2 * mouse.clientY/this.viewPortHeight),-1, 1]);
+    // let cc = this.camera.projMatrix().inverse().multiplyVec4(mouseNDC);
+    // let mw = this.camera.viewMatrix().inverse().multiplyVec4(cc);
+    // mw.scale(1 / mw.w);
 
-    //console.log (mw.x, mw.y, mw.z);
+    // //console.log (mw.x, mw.y, mw.z);
 
-    let dir = Vec3.difference(new Vec3 ([mw.x, mw.y, mw.z]), pos);
-    dir.normalize();
-    let r : Ray = new Ray(pos, dir);
+    // let dir = Vec3.difference(new Vec3 ([mw.x, mw.y, mw.z]), pos);
+    // dir.normalize();
+    // let r : Ray = new Ray(pos, dir);
     
-    this.animation.getScene().meshes.forEach(m => {
-      let bIndex = -1;
-      let time = -1;
-      m.bones.forEach((bone, idx) => {
-        let t = bone.intersect(0.3, r);
+    // this.animation.getScene().meshes.forEach(m => {
+    //   let bIndex = -1;
+    //   let time = -1;
+    //   m.bones.forEach((bone, idx) => {
+    //     let t = bone.intersect(0.3, r);
         
-        if (t > 0 && (t < time || bIndex == -1)) {
-          //console.log (t);
-          time = t;
-          bIndex = idx;
-        }
-      });
-      m.setHighlight(bIndex);
+    //     if (t > 0 && (t < time || bIndex == -1)) {
+    //       //console.log (t);
+    //       time = t;
+    //       bIndex = idx;
+    //     }
+    //   });
+    //   m.setHighlight(bIndex);
       
 
-    });
+    //});
   }
 
   public getModeString(): string {

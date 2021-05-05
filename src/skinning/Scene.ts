@@ -37,6 +37,7 @@ export class MeshGeometry {
   }
 }
 
+
 export class Ray {
   public origin: Vec3;
   public direction: Vec3;
@@ -218,9 +219,9 @@ export class Bone {
   }
 
   public DMat() : Mat4 {
-    if (this.D != null) {
-      return this.D;
-    }
+    // if (this.D != null) {
+    //   return this.D;
+    // }
 
     let dprev : Mat4;
     if (this.parent == -1) {
@@ -383,6 +384,8 @@ export class Mesh {
     // });
     b.updatePosition();
     b.updateRotation();
+
+
     this.changes[index].multiply(rot)
   }
 

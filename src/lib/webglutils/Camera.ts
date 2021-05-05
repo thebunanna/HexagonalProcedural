@@ -321,6 +321,9 @@ export class Camera {
     this._forward = rotMat.multiplyVec3(this._forward);
     this._right = rotMat.multiplyVec3(this._right);
 
+    this._right.y = 0;
+    this._up = Vec3.cross(this._forward, this._right);
+
     const rotQuat = Quat.fromAxisAngle(axis, radians);
     this._orientation = Quat.product(rotQuat, this._orientation);
 
