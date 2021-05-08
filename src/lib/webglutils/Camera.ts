@@ -56,6 +56,8 @@ export class Camera {
   private _zNear: number; // near plane distance
   private _zFar: number; // far plane distance
 
+  private yaw_v : number;
+  private pitch_v : number;
   /**
    * Camera::constructor
    * @param pos    - the position of the camera
@@ -101,6 +103,9 @@ export class Camera {
     console.assert(this._zNear != null);
     this._zFar = zFar;
     console.assert(this._zFar != null);
+
+    this.yaw_v = 0;
+    this.pitch_v = 0;
   }
 
   public setKeyFrame(p: Vec3, o: Quat, d: number) {
@@ -317,12 +322,12 @@ export class Camera {
     rotMat.rotate(radians, axis);
 
     // Compute new basis vectors
-    this._up = rotMat.multiplyVec3(this._up);
+    this._up = new Vec3 ([0,1,0])//rotMat.multiplyVec3(this._up);
     this._forward = rotMat.multiplyVec3(this._forward);
     this._right = rotMat.multiplyVec3(this._right);
 
-    this._right.y = 0;
-    this._up = Vec3.cross(this._forward, this._right);
+    // this._right.y = 0;
+    // this._up = Vec3.cross(this._forward, this._right);
 
     const rotQuat = Quat.fromAxisAngle(axis, radians);
     this._orientation = Quat.product(rotQuat, this._orientation);
@@ -351,5 +356,29 @@ export class Camera {
     );
     console.assert(m != null);
     return m;
+  }
+
+  
+
+  public rotate_euler (x: number, y:number, sense : number) {
+    this.yaw_v += x;
+    this.pitch_v += y;
+
+    this.pitch_v = Math.min (89, this.pitch_v);
+    this.pitch_v = Math.max (-89, this.pitch_v);
+
+    let p_rad = this.pitch_v * Math.PI / 180;
+    let y_rad = this.yaw_v * Math.PI / 180;
+
+    let dir = new Vec3 ([
+            Math.cos(y_rad) * Math.cos(p_rad), 
+            Math.sin(p_rad),
+            Math.sin(y_rad) * Math.cos(p_rad)
+          ]);
+    dir.normalize();
+    this._forward = dir;
+    this._up = new Vec3([0,1,0]);
+    this._right = Vec3.cross(this._up, this._forward);
+
   }
 }

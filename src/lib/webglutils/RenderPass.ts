@@ -153,6 +153,23 @@ export class RenderPass {
     this.extVAO.bindVertexArrayOES(null);
   }
 
+  public draw_range (start:number, end:number) {
+    let gl = this.ctx;
+    gl.useProgram(this.shaderProgram);
+    this.extVAO.bindVertexArrayOES(this.VAO);
+
+    this.uniforms.forEach(uniform => {
+      uniform.bindFunction(gl, uniform.location);
+    });
+    if (this.textureMapped) {
+      gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    }
+    gl.drawElements(this.drawMode, end - start, this.drawType, start * 4);
+
+    gl.useProgram(null);
+    this.extVAO.bindVertexArrayOES(null);
+  }
+
   public setDrawData(drawMode: GLenum, drawCount: number, drawType: GLenum, drawOffset: number) {
     this.drawMode = drawMode;
     this.drawCount = drawCount;

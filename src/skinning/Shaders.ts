@@ -160,19 +160,26 @@ export const hexVSText = `
 
     attribute vec3 vertPosition;
     attribute vec3 aNorm;
+    attribute vec2 aTextureCoord;
 
     uniform vec4 uLightPos;
     uniform mat4 mWorld;
     uniform mat4 mView;
     uniform mat4 mProj;
+    uniform vec3 cPos;
 
     varying vec4 lightDir;
     varying vec4 normal;   
+    varying float dist;
+    varying highp vec2 vTextureCoord;
 
     void main () {
         gl_Position = mProj * mView * mWorld * vec4 (vertPosition, 1.0);
-        lightDir = uLightPos - vec4(vertPosition, 1.0);
+        lightDir = uLightPos;// - vec4(vertPosition, 1.0);
+        dist = distance (vertPosition, cPos);
         normal = vec4 (aNorm, 0.0);
+        vTextureCoord = aTextureCoord;
+
     }
 `;
 
@@ -181,10 +188,17 @@ export const hexFSText = `
 
     varying vec4 lightDir;
     varying vec4 normal;   
+    varying float dist;
+    varying highp vec2 vTextureCoord;
+
+    uniform sampler2D uSampler;
 
     void main () {
-        gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
-        gl_FragColor *= max (dot (normalize(lightDir), normal), 0.0);
+        float alpha = 1.0 / (dist + 0.01);
+        gl_FragColor = texture2D(uSampler, vTextureCoord);
+
+        // gl_FragColor = vec4(0.0, 1.0, 0.0, 0.0);
+        gl_FragColor *= max (dot (normalize(lightDir), normal), 0.1);
         gl_FragColor += vec4 (0,0,0, 1.0);
     }
 `;

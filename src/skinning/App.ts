@@ -53,11 +53,18 @@ export class SkinningAnimation extends CanvasAnimation {
 
   /* Global Rendering Info */
   private lightPosition: Vec4;
+  private lightDir: Vec4;
   private backgroundColor: Vec4;
 
   private canvas2d: HTMLCanvasElement;
   private ctx2: CanvasRenderingContext2D | null;
 
+  private pos : Vec2;
+
+  private render : {};
+  private loaded : {};
+  private islight : boolean;
+  private seed : string;
 
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
@@ -93,11 +100,19 @@ export class SkinningAnimation extends CanvasAnimation {
     // TODO
     // Other initialization, for instance, for the bone highlighting
     
+    this.render = {};
+    this.loaded = {};
+    this.seed = '0';
+    this.lightDir = new Vec4 ([0.0,-1,0,0]);
+
+
     this.initGui();
 
-    
+    this.pos = this.getGUI().getCameraPos();
 
     this.millis = new Date().getTime();
+    //@ts-ignore
+    window.renderer = this;
   }
 
   public getScene(): CLoader {
@@ -109,7 +124,7 @@ export class SkinningAnimation extends CanvasAnimation {
    */
   public reset(): void {
       this.gui.reset();
-      this.setScene(this.loadedScene);
+      this.setScene();
   }
 
   public initGui(): void {
@@ -170,9 +185,6 @@ export class SkinningAnimation extends CanvasAnimation {
 
 
   public initScene(): void {
-    if (this.scene.meshes.length === 0) { return; }
-    this.initModel();
-    this.initSkeleton(0);
     this.initDebug();
     this.initHexBlocks();
     this.gui.reset();
@@ -187,67 +199,46 @@ export class SkinningAnimation extends CanvasAnimation {
     return Math.floor(Math.random() * 2) + 1;
   }
 
-  
-
   public initHexBlocks(): void {
     this.hexagonRenderPass = new RenderPass(this.extVAO, this.ctx, hexVSText, hexFSText);
 
-    let hgl : HexGrid[] = [];
-
-    hgl.push (new HexGrid(new Vec2([16,-16]), HexGrid.perlin, 0));
-    hgl.push (new HexGrid(new Vec2([16,0]), HexGrid.perlin, 0));
-    hgl.push (new HexGrid(new Vec2([0,0]), HexGrid.perlin, 0));
-    hgl.push (new HexGrid(new Vec2([0,-16]), HexGrid.perlin, 0));
-    hgl.push (new HexGrid(new Vec2([0,16]), HexGrid.perlin, 0));
-    // hgl.push (new HexGrid(new Vec2([16,0]), HexGrid.perlin, 0));
-    hgl.push (new HexGrid(new Vec2([16,16]), HexGrid.perlin, 0));
-
-    hgl.forEach(element => {
-      element.generate();
-    });
-    
-    
-    // let h : [number, number][] = [[0,0], [0,1]]
-    // let hc : HexColumn[] = []
-    // h.forEach((e)=>{
-    //   hc.push(new HexColumn(2, new Vec2(e)));
+    // let a = [2,2,2,1,1,1];
+    // let b = new Vec2 ([-1,-4]);
+    // let hl = []
+    // a.forEach(element => {
+    //   hl.push(new HexColumn (element, b)); 
     // });
-
-    let fIndices : number[] = []
-    let len = 0;
-    hgl.forEach((e)=>{
-      console.log(e.getIndex(0));
-      fIndices.push(...e.getIndex(len))
-      len = Math.max(...fIndices) + 1;
-    });
+    
+    // let h = new HexColumn (5, b);
+    // h.createCache(hl);
+    let h = new HexBlock (new Vec3([0,1,0]));
+    for (let i = 0; i < 8; i++) {
+      h.reveal(i);
+    }
+    // h.setHidden(1);
+    // let h = new HexGrid(new Vec2([-16,0]), HexGrid.perlin, 0);
+    // h.generate();
+    let d = h.getData();
+    // let d = [[],[],[]];
+    let fIndices : number[] = d[1];
+    let fNorms : number[] = d[2];
+    let fVert :number[] = d[0];
+    let fText : number[] = d[3];
 
     this.hexagonRenderPass.setIndexBufferData(new Uint32Array(fIndices));
 
-    let fVert = []
-    hgl.forEach((e)=> {
-      let temp = e.getVertex();
-      // console.log(e.position);
-      // for (let i = 0; i < temp.length; i+=3) {
-      //   console.log (temp[i], temp[i + 1], temp[i+2])
-      // }
-      // console.log ("#####")
-      fVert.push(...temp)
-    })
-
     this.hexagonRenderPass.addAttribute("vertPosition", 3, this.ctx.FLOAT, false,
       3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, new Float32Array(fVert));
-
-    let fNorms : number[] = []
-    hgl.forEach((e)=>{
-      fNorms.push(...e.getNormals())
-    });
     
     this.hexagonRenderPass.addAttribute("aNorm", 3, this.ctx.FLOAT, false,
       3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, new Float32Array(fNorms));
 
+    this.hexagonRenderPass.addAttribute("aTextureCoord", 2, this.ctx.FLOAT, false,
+      2 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, new Float32Array(fText));
+
     this.hexagonRenderPass.addUniform("uLightPos",
       (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniform4fv(loc, this.lightPosition.xyzw);
+        gl.uniform4fv(loc, this.lightDir.xyzw);
     });
     
     this.hexagonRenderPass.addUniform("mWorld",
@@ -262,118 +253,20 @@ export class SkinningAnimation extends CanvasAnimation {
       (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
         gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.viewMatrix().all()));
     });
+    this.hexagonRenderPass.addUniform("uSampler",
+      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
+        gl.uniform1i(loc, 0);
+    });
 
+
+    this.hexagonRenderPass.addUniform("cPos",
+    (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
+      gl.uniform3fv(loc, this.getGUI().camera.pos().xyz);
+    });
+    this.hexagonRenderPass.addTextureMap("minecraft_tree_wood.jpg");
     this.hexagonRenderPass.setDrawData(this.ctx.TRIANGLES,
       fIndices.length, this.ctx.UNSIGNED_INT, 0);
     this.hexagonRenderPass.setup();
-  }
-
-  /**
-   * Sets up the mesh and mesh drawing
-   */
-  public initModel(): void {
-    this.sceneRenderPass = new RenderPass(this.extVAO, this.ctx, sceneVSText, sceneFSText);
-
-    let faceCount = this.scene.meshes[0].geometry.position.count / 3;
-    let fIndices = new Uint32Array(faceCount * 3);
-    for (let i = 0; i < faceCount * 3; i += 3) {
-      fIndices[i] = i;
-      fIndices[i + 1] = i + 1;
-      fIndices[i + 2] = i + 2;
-    }    
-    this.sceneRenderPass.setIndexBufferData(fIndices);
-
-    this.sceneRenderPass.addAttribute("vertPosition", 3, this.ctx.FLOAT, false,
-      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.position.values);
-    this.sceneRenderPass.addAttribute("aNorm", 3, this.ctx.FLOAT, false,
-      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.normal.values);
-    if (this.scene.meshes[0].geometry.uv) {
-      this.sceneRenderPass.addAttribute("aUV", 2, this.ctx.FLOAT, false,
-        2 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.uv.values);
-    } else {
-      this.sceneRenderPass.addAttribute("aUV", 2, this.ctx.FLOAT, false,
-        2 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, new Float32Array(this.scene.meshes[0].geometry.normal.values.length));
-    }
-    this.sceneRenderPass.addAttribute("skinIndices", 4, this.ctx.FLOAT, false,
-      4 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.skinIndex.values);
-    this.sceneRenderPass.addAttribute("skinWeights", 4, this.ctx.FLOAT, false,
-      4 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.skinWeight.values);
-    this.sceneRenderPass.addAttribute("v0", 3, this.ctx.FLOAT, false,
-      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.v0.values);
-    this.sceneRenderPass.addAttribute("v1", 3, this.ctx.FLOAT, false,
-      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.v1.values);
-    this.sceneRenderPass.addAttribute("v2", 3, this.ctx.FLOAT, false,
-      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.v2.values);
-    this.sceneRenderPass.addAttribute("v3", 3, this.ctx.FLOAT, false,
-      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[0].geometry.v3.values);
-
-    this.sceneRenderPass.addUniform("lightPosition",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniform4fv(loc, this.lightPosition.xyzw);
-    });
-    this.sceneRenderPass.addUniform("mWorld",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniformMatrix4fv(loc, false, new Float32Array(new Mat4().setIdentity().all()));        
-    });
-    this.sceneRenderPass.addUniform("mProj",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.projMatrix().all()));
-    });
-    this.sceneRenderPass.addUniform("mView",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.viewMatrix().all()));
-    });
-    this.sceneRenderPass.addUniform("jTrans",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {        
-        gl.uniform3fv(loc, this.scene.meshes[0].getBoneTranslations());
-    });
-    this.sceneRenderPass.addUniform("jRots",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniform4fv(loc, this.scene.meshes[0].getBoneRotations());
-    });
-
-    this.sceneRenderPass.setDrawData(this.ctx.TRIANGLES, this.scene.meshes[0].geometry.position.count, this.ctx.UNSIGNED_INT, 0);
-    this.sceneRenderPass.setup();
-  }
-
-  /**
-   * Sets up the skeleton drawing
-   */
-  public initSkeleton(index : number): void {
-    this.skeletonRenderPass[index].setIndexBufferData(this.scene.meshes[index].getBoneIndices());
-
-    this.skeletonRenderPass[index].addAttribute("vertPosition", 3, this.ctx.FLOAT, false,
-      3 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[index].getBonePositions());
-    this.skeletonRenderPass[index].addAttribute("boneIndex", 1, this.ctx.FLOAT, false,
-      1 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[index].getBoneIndexAttribute());
-     this.skeletonRenderPass[index].addAttribute("highlight", 1, this.ctx.FLOAT, false,
-       1 * Float32Array.BYTES_PER_ELEMENT, 0, undefined, this.scene.meshes[index].getHighlightedBones());
-    
-    this.skeletonRenderPass[index].addUniform("mWorld",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniformMatrix4fv(loc, false, new Float32Array(Mat4.identity.all()));
-    });
-    this.skeletonRenderPass[index].addUniform("mProj",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.projMatrix().all()));
-    });
-    this.skeletonRenderPass[index].addUniform("mView",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.viewMatrix().all()));
-    });
-    this.skeletonRenderPass[index].addUniform("bTrans",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniform3fv(loc, this.getScene().meshes[index].getBoneTranslations());
-    });
-    this.skeletonRenderPass[index].addUniform("bRots",
-      (gl: WebGLRenderingContext, loc: WebGLUniformLocation) => {
-        gl.uniform4fv(loc, this.getScene().meshes[index].getBoneRotations());
-    });
-
-    this.skeletonRenderPass[index].setDrawData(this.ctx.LINES,
-      this.scene.meshes[index].getBoneIndices().length, this.ctx.UNSIGNED_INT, 0);
-    this.skeletonRenderPass[index].setup();
-    
   }
 
   public initDebug() {
@@ -416,6 +309,12 @@ export class SkinningAnimation extends CanvasAnimation {
     //
     this.getGUI().incrementTime(deltaT);
     deltaT /= 1000;
+
+    if (this.islight) {
+      this.lightDir = new Vec4 ([Math.cos(curr * Math.PI / 36000), Math.sin(curr * Math.PI / 36000), 0 , 0]);
+      this.lightDir.normalize();
+    }
+    
     // TODO
     // If the mesh is animating, probably you want to do some updating of the skeleton state here
     
@@ -479,9 +378,52 @@ export class SkinningAnimation extends CanvasAnimation {
     this.floorRenderPass.draw();
 
     /* Draw Scene */
-    if (this.scene.meshes.length > 0) {
+    
 
-      this.hexagonRenderPass.draw();
+    let cam_pos = this.getGUI().getCameraPos();
+    let npos : [number, number] = [Math.floor (cam_pos.x / 16) * 16, Math.floor (cam_pos.y / 13.5) * 16];
+
+    // if (npos[0] != this.pos.x || npos[1] != this.pos.y) {
+
+    //   this.pos = new Vec2 (npos);
+    //   let hgl : HexGrid[] = [];
+    //   for (let i = -1; i < 2; i++) {
+    //     for (let j = -1; j < 2; j++) {
+    //       let new_g_pos : [number, number] = [npos[0] + i * 16, npos[1] + j * 16]
+    //       let s = new_g_pos.join(' ');
+    //       if (! (s in this.loaded)) {
+    //         let g = new HexGrid(new Vec2 (new_g_pos), HexGrid.perlin, this.seed);
+    //         g.generate();
+    //         this.loaded[s] = g;
+    //       }
+    //       hgl.push (this.loaded[s]);
+    //     }
+    //   }
+      
+    //   let fIndices : number[] = []
+    //   let fVert = []
+    //   let fNorms : number[] = []
+
+    //   hgl.forEach(grid => {
+    //     let data = grid.getData();
+    //     let v = data[0];
+    //     let i = data[1];
+    //     let n = data[2];
+    //     for (let ind = 0; ind < i.length; ind++) {
+    //       i[ind] += fVert.length / 3;
+    //     }
+    //     fIndices.push(...i);
+    //     fVert.push(...v);
+    //     fNorms.push(...n);
+    //   });
+
+    //   this.hexagonRenderPass.updateAttr("vertPosition", new Float32Array(fVert));
+    //   this.hexagonRenderPass.updateAttr("aNorm", new Float32Array(fNorms));
+    //   this.hexagonRenderPass.updateIndex(new Uint32Array(fIndices));
+    //   this.hexagonRenderPass.setDrawData(this.ctx.TRIANGLES,
+    //     fIndices.length, this.ctx.UNSIGNED_INT, 0);
+    // }
+    this.hexagonRenderPass.draw();
 
       // this.sceneRenderPass.draw();
       // gl.disable(gl.DEPTH_TEST);
@@ -498,7 +440,7 @@ export class SkinningAnimation extends CanvasAnimation {
       // this.debugPass.setDrawData(this.ctx.LINES, h1.visCache[0].getIndex(0).length, this.ctx.UNSIGNED_INT, 0);      
       // TODO
       // Also draw the highlighted bone (if applicable)
-    }
+    
   }
 
   public getGUI(): GUI {
@@ -509,22 +451,27 @@ export class SkinningAnimation extends CanvasAnimation {
    * Loads and sets the scene from a Collada file
    * @param fileLocation URI for the Collada file
    */
-  public setScene(fileLocation: string): void {
-    this.loadedScene = fileLocation;
-    this.scene = new CLoader(fileLocation);
-    this.scene.load(() => this.initScene());
+  public setScene(): void {
+    const seed_val = document.getElementById("seed") as HTMLInputElement;
+    this.seed = seed_val.value;
+    this.loaded = {};
+    this.render = {};
+    this.initScene();
   }
 }
 
 export function initializeCanvas(): void {
   const canvas = document.getElementById("glCanvas") as HTMLCanvasElement;
-  const slider = document.getElementById("time") as HTMLInputElement;
+  const slider = document.getElementById("light") as HTMLInputElement;
   slider.addEventListener("change", (event) => {
-    const num = document.getElementById("num") as HTMLParagraphElement;
-    num.innerHTML = (<HTMLInputElement>event.target).value;
+    let t = event.target as HTMLInputElement;
+
+    //@ts-ignore
+    window.renderer.islight = t.checked;
+
   })
   /* Start drawing */
   const canvasAnimation: SkinningAnimation = new SkinningAnimation(canvas);
   canvasAnimation.start();
-  canvasAnimation.setScene("/static/assets/skinning/split_cube.dae");
+  canvasAnimation.setScene();
 }

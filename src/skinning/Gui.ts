@@ -5,6 +5,7 @@ import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
 import { Bone, KeyFrame, Mesh, Ray } from "./Scene.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
 import { Vector2 } from "../lib/threejs/src/Three.js";
+import { HexGrid } from "./Hexagon.js";
 
 /**
  * Might be useful for designing any animation GUI
@@ -36,7 +37,7 @@ export class GUI implements IGUI {
 
   private ctx: DOMRect;
   private center: Vec3;
-  private camera: Camera;
+  public camera: Camera;
   private mesh: Mesh[];
 
   //Do note that this should be changed lateR?
@@ -151,6 +152,12 @@ export class GUI implements IGUI {
     this.camera = new Camera(pos, target, upDir, fov, aspect, zNear, zFar);
   }
 
+  public getCameraPos () : Vec2 {
+    let pos = this.camera.pos();
+    return new Vec2 ([pos.x, pos.z]);
+    return new Vec2 ([Math.floor (pos.x / 16), Math.floor (pos.z / 13)])
+  }
+
   /**
    * Returns the view matrix of the camera
    */
@@ -253,11 +260,16 @@ export class GUI implements IGUI {
 
       switch (mouse.buttons) {
         case 1: {
-          let rotAxis: Vec3 = Vec3.cross(this.camera.forward(), mouseDir);
-          rotAxis = rotAxis.normalize();
-          this.camera.rotate(rotAxis, GUI.rotationSpeed);
+          // this.camera.yaw(dx * GUI.rotationSpeed);
+          // this.camera.pitch(dy * GUI.rotationSpeed);
+          this.camera.rotate_euler (dx, dy, GUI.rotationSpeed);
+          // let rotAxis: Vec3 = Vec3.cross(this.camera.forward(), mouseDir);
+          // rotAxis = rotAxis.normalize();
+          // this.camera.rotate(rotAxis, GUI.rotationSpeed);
+
           //console.log (this.camera.right().xyz);
           //let r = this.camera.right();
+
           // if ( Math.abs (this.camera.right().y - 1e-5) > 0) {
           //   let plane = new Vec3 ([0,1,0])//Vec3.cross(this.camera.forward(), new Vec3 ([r.x, 0, r.z]))
           //   let angle = Math.asin(Math.abs (Vec3.dot(plane, r)) / (plane.length() * r.length()));
@@ -356,56 +368,36 @@ export class GUI implements IGUI {
    */
   public onKeydown(key: KeyboardEvent): void {
     switch (key.code) {
-      case "Digit1": {
-        this.animation.setScene("/static/assets/skinning/split_cube.dae");
-        break;
-      }
-      case "Digit2": {
-        this.animation.setScene("/static/assets/skinning/long_cubes.dae");
-        break;
-      }
-      case "Digit3": {
-        this.animation.setScene("/static/assets/skinning/simple_art.dae");
-        break;
-      }      
-      case "Digit4": {
-        this.animation.setScene("/static/assets/skinning/mapped_cube.dae");
-        break;
-      }
-      case "Digit5": {
-        this.animation.setScene("/static/assets/skinning/robot.dae");
-        break;
-      }
-      case "Digit6": {
-        this.animation.setScene("/static/assets/skinning/head.dae");
-        break;
-      }
-      case "Digit7": {
-        this.animation.setScene("/static/assets/skinning/wolf.dae");
-        break;
-      }
       case "Digit8": {
         this.debug = !this.debug;
         break;
       }
       case "KeyW": {
+        let v = this.camera.forward()
+        v.y = 0;
         this.camera.offset(
-            this.camera.forward().negate(),
+            v.negate(),
             GUI.zoomSpeed,
             true
           );
         break;
       }
       case "KeyA": {
-        this.camera.offset(this.camera.right().negate(), GUI.zoomSpeed, true);
+        let v = this.camera.right();
+        v.y = 0;
+        this.camera.offset(v.negate(), GUI.zoomSpeed, true);
         break;
       }
       case "KeyS": {
-        this.camera.offset(this.camera.forward(), GUI.zoomSpeed, true);
+        let v = this.camera.forward()
+        v.y = 0;
+        this.camera.offset(v, GUI.zoomSpeed, true);
         break;
       }
       case "KeyD": {
-        this.camera.offset(this.camera.right(), GUI.zoomSpeed, true);
+        let v = this.camera.right();
+        v.y = 0;
+        this.camera.offset(v, GUI.zoomSpeed, true);
         break;
       }
       case "KeyR": {
@@ -421,21 +413,21 @@ export class GUI implements IGUI {
         this.camera.roll(GUI.rollSpeed, true);
         break;
       }
-      case "ArrowUp": {
-        this.camera.offset(this.camera.up(), GUI.zoomSpeed, true);
+      case "Space": {
+        this.camera.offset(new Vec3 ([0,1,0]), GUI.zoomSpeed, true);
         break;
       }
-      case "ArrowDown": {
-        this.camera.offset(this.camera.up().negate(), GUI.zoomSpeed, true);
+      case "ShiftLeft": {
+        this.camera.offset(new Vec3 ([0,-1,0]), GUI.zoomSpeed, true);
         break;
       }
       case "KeyK": {
         if (this.mode === Mode.edit) {
-          let k = this.animation.getScene().meshes[0].createKeyFrame();
-          let time = document.getElementById("time") as HTMLInputElement;
+          // let k = this.animation.getScene().meshes[0].createKeyFrame();
+          // let time = document.getElementById("time") as HTMLInputElement;
           
-          k.setLength(+time.value);
-          this.keyframes.push(k);
+          // k.setLength(+time.value);
+          // this.keyframes.push(k);
         }
         break;
       }      
