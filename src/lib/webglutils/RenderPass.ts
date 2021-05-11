@@ -127,7 +127,7 @@ export class RenderPass {
           gl.useProgram(null);
           this.extVAO.bindVertexArrayOES(null);
         }
-        img.src = "/static/assets/skinning/" + this.textureMap;
+        img.src = "/static/assets/hexcraft/" + this.textureMap;
       }
     }
 
@@ -188,7 +188,7 @@ export class RenderPass {
 
   public updateIndex(data: Uint32Array) {
     const gl: WebGLRenderingContext = this.ctx;
-
+    
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
     gl.bufferData(
       gl.ELEMENT_ARRAY_BUFFER,

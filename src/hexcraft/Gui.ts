@@ -1,6 +1,6 @@
 import { Camera } from "../lib/webglutils/Camera.js";
 import { CanvasAnimation } from "../lib/webglutils/CanvasAnimation.js";
-import { SkinningAnimation } from "./App.js";
+import { HexagonAnimation } from "./App.js";
 import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
 import { Bone, KeyFrame, Mesh, Ray } from "./Scene.js";
 import { RenderPass } from "../lib/webglutils/RenderPass.js";
@@ -50,7 +50,7 @@ export class GUI implements IGUI {
   private viewPortHeight: number;
   private width: number;
 
-  private animation: SkinningAnimation;
+  private animation: HexagonAnimation;
 
   public time: number;
   
@@ -70,7 +70,7 @@ export class GUI implements IGUI {
    * @param animation required as a back pointer for some of the controls
    * @param sponge required for some of the controls
    */
-  constructor(canvas: HTMLCanvasElement, animation: SkinningAnimation) {
+  constructor(canvas: HTMLCanvasElement, animation: HexagonAnimation) {
     this.height = canvas.height;
     this.viewPortHeight = this.height - 200;
     this.width = canvas.width;

@@ -141,7 +141,7 @@ export class HexBlock {
             for (let i = 0; i < 7; i++) {
                 vdata.push (base[i*3], base[i*3+1], base[i*3+2]);
                 ndata.push (HexBlock.bNorm[i*3], HexBlock.bNorm[i*3 + 1], HexBlock.bNorm[i*3 + 2]);
-                tdata.push (base[i*3] + 0.5, base[i*3+2] + 0.5);
+                tdata.push (HexBlock.bVec[i*3] + 0.5, HexBlock.bVec[i*3+2] + 0.5);
             }
 
             for (let i = 0; i < 6; i++) {
@@ -154,7 +154,7 @@ export class HexBlock {
             for (let i = 7; i < 14; i++) {
                 vdata.push (base[i*3], base[i*3+1], base[i*3+2])
                 ndata.push (HexBlock.bNorm[i*3], HexBlock.bNorm[i*3 + 1], HexBlock.bNorm[i*3 + 2]);
-                tdata.push (base[i*3] + 0.5, base[i*3+2] + 0.5);
+                tdata.push (HexBlock.bVec[i*3] + 0.5, HexBlock.bVec[i*3+2] + 0.5);
             }
             for (let i = 6; i < 12; i++) {
                 idata.push (HexBlock.bInd[i*3] + len, HexBlock.bInd[i*3+1] + len, HexBlock.bInd[i*3+2] + len)
@@ -185,10 +185,6 @@ export class HexBlock {
                 ind.forEach(element => {
                     idata.push (element + len)
                 });
-                // idata.push ()
-                // for (let j = 36 + i * 6; j < 36 + i * 6 + 6; j++) {
-                //     idata.push(HexBlock.bInd[j]);
-                // }
 
                 let dir = Vec3.cross (Vec3.difference(vecs[2], vecs[1]), Vec3.difference(vecs[0], vecs[1]));
                 dir.normalize();                
@@ -198,37 +194,10 @@ export class HexBlock {
                 
             }
         }
-        // console.log (this.bHidden, idata, this.origin.y);
         return [vdata, idata, ndata, tdata];
     }
 
-    // public getVertex () : number[] {
 
-    //     let base = [...HexBlock.bVec]
-
-    //     for (let i = 0; i < 14; i++) {
-    //         base[i*3] += this.origin.x;
-    //         base[i*3 + 1] += this.origin.y;
-    //         base[i*3 + 2] += this.origin.z;
-    //     }
-
-    //     return base;
-    // }
-    // public getIndex (off : number) : number[] {
-    //     off = Math.trunc(off);
-    //     let base = [...HexBlock.bInd];
-    //     //let m = Math.max(...base) + 1
-    //     let l = base.length;
-    //     for (let i = 0; i < l; i++) {
-    //         base[i] += off;
-    //     }
-
-    //     return base;
-    // }
-
-    // public getNormals() : number[] {
-    //     return [...HexBlock.bNorm];
-    // }
 
     public getDebugIndex (off : number) {
         off = Math.trunc(off);
@@ -259,11 +228,26 @@ export class HexBlock {
 export class HexColumn {
     readonly count = 64;
     private blocks : Uint32Array;
-    public visCache : Array<HexBlock>;
+    public visCache : Array<[HexBlock, number]>;
     public position : Vec2;
+    private neighbors : Array<HexColumn>;
+    
     private height : number;
     private gpos : Vec2;
-    constructor (height : number, pos : Vec2) {
+
+    private dirt = 0;
+
+    public static readonly type = {
+        'air' : 0,
+        'dirt' : 1,
+        'grass' : 2,
+        'stone' : 3,
+        'leaf' : 4,
+        'wood' : 5,
+        'water' : 6,
+    };
+
+    constructor (height : number, pos : Vec2, seed : string) {
         this.gpos = pos.copy();
         this.height = height;
         this.position = pos.copy();
@@ -277,54 +261,75 @@ export class HexColumn {
             height = 63;
         }
         this.blocks = new Uint32Array(this.count);
+
+        if (height < 1) {
+            this.blocks[0] = HexColumn.type['water'];
+            return;
+        }
+        //@ts-ignore
+        var seedrand = new Math.seedrandom(this.gpos.x.toString() + seed + this.gpos.y.toString());
+
+        let r1 = Math.floor (seedrand() * 4 + 2);
         for (let i = 0; i < this.count; i++) {
-            if (i >= height) {
-                this.blocks[i] = 0
+            if (i > height) {
+                this.blocks[i] = HexColumn.type['air'];
+            }
+            else if (i == Math.floor(height)) {
+                this.blocks[i] = HexColumn.type['grass'];
+            }
+            else if (i + r1 > height) {
+                this.blocks[i] = HexColumn.type['dirt'];
             }
             else {
-                this.blocks[i] = 1;
+                this.blocks[i] = HexColumn.type['stone'];
             }
         }
+        
         
         // this.createCache();
     }
 
-    public createCache(others : Array<HexColumn>) : void {
-        this.visCache = new Array<HexBlock>();
-        for (let i = 0; i < this.count; i++) {
+    public setNeighbors (others : Array<HexColumn>) : void {
+        this.neighbors = others;
+        console.assert (this.neighbors.length == 6);
+    }
 
-            if (this.blocks[i] == 0) {
+    public createCache() : void {
+        
+        this.visCache = new Array<[HexBlock,number]>();
+        for (let i = 0; i < this.count; i++) {
+            // if (this.blocks[i] == HexColumn.type['water']) {
+            //     console.log ("is water");
+            // }
+            if (this.blocks[i] == HexColumn.type['air']) { 
                 continue;
             }
-
+            
             let below = i - 1;            
             let above = i + 1;
 
             if (below == -1) {
                 below = 0;
             }
-            if (above == this.count) {
-                above = this.count - 1;
-            }
+
             let block = new HexBlock(new Vec3 ([this.position.x, i, this.position.y]));
             let flag = false;
             // this.visCache.push(new HexBlock(new Vec3 ([this.position.x, i, this.position.y])))
-            if (this.blocks[below] == 0 ) {
+            if (this.blocks[below] == HexColumn.type['air']) {
                 block.reveal(1);
                 flag = true;
             }
-            if (this.blocks[above] == 0) {
+            if (above == this.count || this.blocks[above] == HexColumn.type['air']) {
                 block.reveal(0);
                 flag = true;
 
             }
-            for (let j = 0; j < others.length; j++) {
-                if (others[j] == undefined) {
-                    console.log ("oh no");
+            for (let j = 0; j < this.neighbors.length; j++) {
+                if (this.neighbors[j] == undefined) {
                     continue;
                 }
             
-                if (others[j].blocks[i] == 0 /* || others[j].blocks[a] == 0 || others[j].blocks[c] == 0 */) {
+                if (this.neighbors[j].blocks[i] == HexColumn.type['air']) {
                     block.reveal(j + 2);
                     flag = true;
                 }
@@ -338,78 +343,102 @@ export class HexColumn {
                 //     console.log (this.gpos.xy, i, block.bHidden);
                 // }
                 
-                this.visCache.push(block)
+                this.visCache.push([block, this.blocks[i]])
             }
         
         }
     }
-    // public getVertex() : number[] {
-    //     let a = [];
-    //     this.visCache.forEach(element => {
-    //         a.push(...element.getVertex())
-    //     });
-    //     return a;
-    // }
 
-    // public getIndex(off : number) : number[] {
-    //     let a = [];
-    //     this.visCache.forEach(e => {
-    //         a.push(...e.getIndex(off));
-    //         //Change this out for more eff
-    //         off += 14;
-    //     });
-    //     return a;
-    // }
+    public add_block (index : number, type : string) : boolean {
+        if (!(type in HexColumn.type)) {
+            return false;
+        }
 
-    // public getNormals() : number[] {
-    //     let a = [];
-    //     this.visCache.forEach(element => {
-    //         a.push(...element.getNormals())
-    //     });
-    //     return a;
-    // }
+        if (this.blocks[index] != HexColumn.type['air']) {
+            return false;
+        }
 
-    public getData() :[number[],number[],number[]] {
-        let ver = [];
-        let ind = [];
-        let nor = [];
+        // console.log ("added block", index, type);
+        this.blocks[index] = HexColumn.type[type];
+        return true;
+    }
+
+    //returns true if edited.
+    public delete_block (index : number) : boolean {
+        if (this.blocks[index] == HexColumn.type['air']) {
+            return false;
+        }
+        this.blocks[index] = HexColumn.type['air'];
+
+        return true;
+    }
+
+    public check_empty (index : number) : boolean {
+        if (this.blocks[index] == HexColumn.type['air']) {
+            return true;
+        }
+        return false;
+    }
+
+    public get_neighbors () : Array<HexColumn> {
+        return this.neighbors;
+    }
+
+    public check_clearance (start : number, height : number, width : number) : boolean {
+        
+        let n = {}
+        this.get_neighbors().forEach((e)=> {
+            n[e.gpos.x.toString() + " " + e.gpos.y.toString()] = e;
+        });
+        n[this.gpos.x.toString() + " " + this.gpos.y.toString()] = this;
+        let pos = Math.floor (this.height) + start;
+
+        for (let i = pos; i < pos + height; i++) {
+            for (const key in n) {
+                if (!n[key].check_empty(i)) {
+                    return false;
+                }               
+            }            
+        }
+        return true;
+    }
+
+    public get_height () : number  {
+        return Math.floor(this.height);
+    }
+    
+
+    public getData() :[number[][],number[][],number[][],number[][]] {
+        let ver : number[][] = [];
+        let ind : number[][] = [];
+        let nor : number[][] = [];
+        let tex : number[][] = [];
+
+        for (const key in HexColumn.type) {
+            ver.push([]);
+            ind.push([]);
+            nor.push([]);
+            tex.push([]);
+        }
+
         this.visCache.forEach(element => {
-            let vlen = ver.length / 3;
-            let d = element.getData();
+            let block = element[0];
+            let id = element[1];
+            let vlen = ver[id].length / 3;
+            let d = block.getData();
 
             for (let i = 0; i < d[1].length; i++) {
                 d[1][i] += vlen;
             }
-            ver.push(...d[0]);
-            ind.push(...d[1]);
-            nor.push(...d[2]);
+            ver[id].push(...d[0]);
+            ind[id].push(...d[1]);
+            nor[id].push(...d[2]);
+            tex[id].push(...d[3]);
         });
         
-        return [ver, ind, nor]
+        return [ver, ind, nor, tex]
     }
 }
-
-var randoms = {}
-
-for (let i = -2; i < 3; i++) {
-    for (let j = -2; j < 3; j++) {
-        //@ts-ignore
-        var seedrand = new Math.seedrandom(i.toString() + '0' + j.toString());
-        randoms[i.toString() + '0' + j.toString()] = new Vec2([seedrand() - 0.5, seedrand() - 0.5]);
-    }
-}
-
-var vis = {}
-var count = {}
-count[1] = 0;
-count[2] = 0;
-count[3] = 0;
-count[4] = 0;
-//@ts-ignore
-window.vis = vis;
-
-//@ts-ignore
-window.count = count;
 
 export class HexGrid {
     static readonly chunk_x : number = 16;
@@ -503,11 +532,6 @@ export class HexGrid {
         var seedrand = new Math.seedrandom(d[0].toString() + seed + d[1].toString());
         let dv = new Vec2([seedrand() - 0.5, seedrand() - 0.5]);
 
-        vis[a[0].toString() + seed + a[1].toString()] = true;
-        vis[b[0].toString() + seed + b[1].toString()] = true;
-        vis[c[0].toString() + seed + c[1].toString()] = true;
-        vis[d[0].toString() + seed + d[1].toString()] = true;
-
 
         // av.normalize();
         // bv.normalize();
@@ -523,24 +547,21 @@ export class HexGrid {
         let ct = new Vec2([c[0] - xc, c[1] - yc])
         let dt = new Vec2([d[0] - xc, d[1] - yc])
 
-        at.normalize();
-        bt.normalize();
-        ct.normalize();
-        dt.normalize();
+        at.scale(1/8);
+        bt.scale(1/8);
+        ct.scale(1/8);
+        dt.scale(1/8);
+        // at.normalize();
+        // bt.normalize();
+        // ct.normalize();
+        // dt.normalize();
 
         let nuv = new Vec2([1 - uv.x, 1 - uv.y]);
         
         let top = nuv.x * Vec2.dot(av, at) + uv.x * Vec2.dot(bv, bt);
         let bot = nuv.x * Vec2.dot(cv, ct) + uv.x * Vec2.dot(dv, dt);
         let res = nuv.y * top + uv.y * bot
-
-        if (res > 1) {
-            console.log (x,y,uv.xy,quad, res);
-
-        }
         
-        count[quad] += 1;
-
         //Biome stuff
 
         for (let i = 0; i < 2; i++) {
@@ -552,22 +573,22 @@ export class HexGrid {
 
         //@ts-ignore
         seedrand = new Math.seedrandom(a[0].toString() + seed + a[1].toString() + 'var');
-        let a_var = (seedrand() + 0.1) * 12;
-        let a_off = (seedrand() - 0.25) * 8;
+        let a_var = (seedrand() + 0.1) * 32;
+        let a_off = (seedrand() - 0.25) * 16;
         //@ts-ignore
         seedrand = new Math.seedrandom(b[0].toString() + seed + b[1].toString() + 'var');
-        let b_var = (seedrand() + 0.1) * 12;
-        let b_off = (seedrand() - 0.25) * 8;
+        let b_var = (seedrand() + 0.1) * 32;
+        let b_off = (seedrand() - 0.25) * 16;
 
         //@ts-ignore
         seedrand = new Math.seedrandom(c[0].toString() + seed + c[1].toString() + 'var');
-        let c_var = (seedrand() + 0.1) * 12;
-        let c_off = (seedrand() - 0.25) * 8;
+        let c_var = (seedrand() + 0.1) * 32;
+        let c_off = (seedrand() - 0.25) * 16;
 
         //@ts-ignore
         seedrand = new Math.seedrandom(d[0].toString() + seed + d[1].toString() + 'var');
-        let d_var = (seedrand() + 0.1) * 12;
-        let d_off = (seedrand() - 0.25) * 8;
+        let d_var = (seedrand() + 0.1) * 32;
+        let d_off = (seedrand() - 0.25) * 16;
 
         let vtop = nuv.x * a_var + uv.x * b_var;
         let vbot = nuv.x * c_var + uv.x * d_var;
@@ -579,7 +600,7 @@ export class HexGrid {
         return Math.ceil ((res + 1) * variance) + offset;
     }
 
-    public generate () : void{
+    public generate () : void {
         this.grid = Array<Array<HexColumn>>(HexGrid.chunk_x);
         for (let i = 0; i < HexGrid.chunk_x; i++) {
             this.grid[i] = new Array<HexColumn>(HexGrid.chunk_y);
@@ -594,10 +615,10 @@ export class HexGrid {
                 let res = this.func(pos[0],pos[1], this.seed);
                 // console.log (res)
                 if (i >= 0 && i < HexGrid.chunk_x && j >= 0 && j < HexGrid.chunk_y) {
-                    this.grid[i][j] = new HexColumn(res, new Vec2(pos));
+                    this.grid[i][j] = new HexColumn(res, new Vec2(pos), this.seed);
                 }
                 else {
-                    others[i.toString() + " " + j.toString()] = new HexColumn(res, new Vec2(pos));
+                    others[i.toString() + " " + j.toString()] = new HexColumn(res, new Vec2(pos), this.seed);
                 }
             }
         }
@@ -642,63 +663,87 @@ export class HexGrid {
                         }
                     }
                 });
-                this.grid[i][j].createCache(n);
+                this.grid[i][j].setNeighbors(n);
+                
             }
         }
+        this.gen_tree();
+        for (let i = 0; i < HexGrid.chunk_x; i++) 
+            for (let j = 0; j < HexGrid.chunk_y; j++) 
+                this.grid[i][j].createCache();
     }
 
-    // public getVertex() : number[] {
-    //     let a = [];
-    //     for (let i = 0; i < HexGrid.chunk_x; i++) {
-    //         for (let j = 0; j < HexGrid.chunk_y; j++) {
-    //             a.push(...this.grid[i][j].getVertex())
-    //         }
-    //     }
-    //     return a;
-    // }
-    // public getIndex(off : number) : number[] {
-    //     let num = off;
-    //     let a = [];
-    //     for (let i = 0; i < HexGrid.chunk_x; i++) {
-    //         for (let j = 0; j < HexGrid.chunk_y; j++) {
-    //             // console.log (i,j)
-    //             let ind = this.grid[i][j].getIndex(num);
-    //             // console.log (off)
-    //             // let m = Math.max (...ind);
-    //             a.push(...ind)
-    //             num = Math.max(...a) + 1
-    //         }
-    //     }
-    //     return a;
-    // }
-    // public getNormals() : number[] {
-    //     let a = [];
-    //     for (let i = 0; i < HexGrid.chunk_x; i++) {
-    //         for (let j = 0; j < HexGrid.chunk_y; j++) {
-    //             a.push(...this.grid[i][j].getNormals())
-    //         }
-    //     }
-    //     return a;
-    // }
+    private gen_tree() : void {
+        //@ts-ignore
+        let seedrand = new Math.seedrandom(this.position.x.toString() + this.seed + this.position.y.toString() + 'tree');
 
-    public getData() : [number[], number[], number[]] {
-        let ver = [];
-        let ind = [];
-        let nor = [];
+
+        for (let i = 2; i < HexGrid.chunk_x - 2; i++) {
+            for (let j = 2; j < HexGrid.chunk_y - 2; j++) {
+                let col = this.grid[i][j];
+                let h = col.get_height();
+
+                let r = seedrand();
+                let len = Math.floor (seedrand() * 5) + 2;
+                if (r > 0.95 && h >= 2) {
+                    
+                    if (col.check_clearance(1, 5, 1)) {
+                        for (let i = 0; i < len; i++) {
+                            col.add_block(h + i + 1, "wood");
+
+                        }
+                        
+                        col.get_neighbors().forEach(element => {
+                            element.add_block(h+len, "leaf");
+                        });
+                        col.add_block(h+ len + 1, "leaf");
+                    }
+                }
+                this.grid[i][j] = col;
+            }
+
+        }
+            
+        
+
+    }
+
+    public getData() : [number[][], number[][], number[][], number[][]] {
+        let ver : number[][] = [];
+        let ind : number[][] = [];
+        let nor : number[][] = [];
+        let tex : number[][] = [];
+
+        for (const key in HexColumn.type) {
+            ver.push([]);
+            ind.push([]);
+            nor.push([]);
+            tex.push([]);
+        }
+
         for (let i = 0; i < HexGrid.chunk_x; i++) {
             for (let j = 0; j < HexGrid.chunk_y; j++) {
-
                 let d = this.grid[i][j].getData();
-                let vlen = ver.length / 3;
-                for (let k = 0; k < d[1].length; k++) {
-                    d[1][k] += vlen;
+
+                for (let k = 0; k < d[0].length; k++) {
+                    let col_ver = d[0][k];
+                    let col_ind = d[1][k];
+                    let col_nor = d[2][k];
+                    let col_tex = d[3][k];
+                    let vlen = ver[k].length / 3;
+                    for (let a = 0; a < col_ind.length; a++) {
+                        col_ind[a] += vlen;
+                    }
+                    ind[k].push(...col_ind);
+                    ver[k].push(...col_ver);
+                    nor[k].push(...col_nor);
+                    tex[k].push(...col_tex);
                 }
-                ind.push(...d[1]);
-                ver.push(...d[0])
-                nor.push(...d[2])
+
+                
             }
         }
-        return [ver, ind, nor]
+        return [ver, ind, nor, tex];
     }
 
 }

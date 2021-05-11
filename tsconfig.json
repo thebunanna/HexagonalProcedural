@@ -9,7 +9,9 @@
         "sourceMap": true,
         "alwaysStrict":true
     },
-    "include": [ "./src/skinning/*.ts", "src/lib/vue/vue.js", "src/lib/threejs/examples/jsm/loaders/*.js"],
+    "include": [ "./src/hexcraft/*.ts", 
+        "src/lib/vue/vue.js", 
+        "src/lib/threejs/examples/jsm/loaders/*.js"],
     "watchOptions": {
         // Use native file system events for files and directories
         "watchFile": "useFsEvents",
