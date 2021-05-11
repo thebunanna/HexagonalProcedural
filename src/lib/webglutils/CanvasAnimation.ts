@@ -181,7 +181,7 @@ export abstract class CanvasAnimation {
       setTimeout(()=> {
         window.requestAnimationFrame(() => this.drawLoop());
 
-      },50);
+      },20);
 
   }
 
