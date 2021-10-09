@@ -257,8 +257,8 @@ export class HexColumn {
 
         this.position.y *= 1.5 * dist; 
         // console.log (this.position.xy, pos.xy);
-        if (height >= 64) {
-            height = 63;
+        if (height >= this.count) {
+            height = this.count - 1;
         }
         this.blocks = new Uint32Array(this.count);
 

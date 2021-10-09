@@ -74,6 +74,8 @@ export class HexagonAnimation extends CanvasAnimation {
   private seed : string;
   private time : number;
 
+  private render_radius : number;
+
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
 
@@ -115,7 +117,7 @@ export class HexagonAnimation extends CanvasAnimation {
     window.renderer = this;
     let ele = document.getElementById("light") as HTMLInputElement;
     this.islight = true; //ele.checked;
-    
+    this.render_radius = 2;
   }
 
   public getScene(): CLoader {
@@ -271,6 +273,7 @@ export class HexagonAnimation extends CanvasAnimation {
     // Advance to the next time step
     let curr = new Date().getTime();
     let deltaT = curr - this.millis;
+    this.millis = curr;
     //
     this.getGUI().incrementTime(deltaT);
     deltaT /= 1000;
@@ -278,7 +281,7 @@ export class HexagonAnimation extends CanvasAnimation {
     if (this.islight) {
       this.time += deltaT;
 
-      this.lightDir = new Vec4 ([Math.cos(this.time * Math.PI / 18000) * 0.5, Math.sin(this.time * Math.PI / 18000), 0 , 0]);
+      this.lightDir = new Vec4 ([Math.cos(this.time * Math.PI / 10) * 0.5, Math.sin(this.time * Math.PI / 10), 0 , 0]);
       this.lightDir.normalize();
     }
     
@@ -358,8 +361,8 @@ export class HexagonAnimation extends CanvasAnimation {
       //Load chunks
       this.pos = new Vec2 (npos);
       let hgl : HexGrid[] = [];
-      for (let i = -2; i < 3; i++) {
-        for (let j = -2; j < 3; j++) {
+      for (let i = -this.render_radius; i < this.render_radius + 1; i++) {
+        for (let j = -this.render_radius; j < this.render_radius + 1; j++) {
           let new_g_pos : [number, number] = [npos[0] + i * 16, npos[1] + j * 16]
           let s = new_g_pos.join(' ');
           if (! (s in this.loaded)) {
@@ -414,8 +417,6 @@ export class HexagonAnimation extends CanvasAnimation {
         this.hexagonRenderPass[ind].setDrawData(this.ctx.TRIANGLES,
           fIndices[ind].length, this.ctx.UNSIGNED_INT, 0);
       }
-
-      
     }
 
     for (let i = 0; i < Object.keys(mapping).length; i++) {
@@ -476,7 +477,24 @@ export function initializeCanvas(): void {
     
 
   });
+  const render = document.getElementById("time") as HTMLInputElement;
+  render.addEventListener("change", (event) => {
+    let t = event.target as HTMLInputElement;
 
+    if (t == undefined) {
+      //@ts-ignore
+      window.renderer.render_radius = 2;
+    }
+    else {
+      //@ts-ignore
+      window.renderer.render_radius = parseInt (t.value);
+    }
+
+    const text = document.getElementById("num");
+    //@ts-ignore
+    text.innerText = window.renderer.render_radius
+
+  });
 
   /* Start drawing */
   const canvasAnimation: HexagonAnimation = new HexagonAnimation(canvas);
