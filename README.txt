@@ -1,13 +1,10 @@
-Name: Jeongmu Hahn
-EID : jdh6372
+Requires Python3, typescript, and http-server
 
-Most functions are working properly.
-The problem with this submission lies with the bone intersection.
-Mapping from mouse device coordinates was achieved, but the actual
-intersection code is buggy at best and not working at worst.
+Can be installed with
+npm install -g typescript
+npm install -g http-server
 
-To make up for this, custom keyframes were implemented. Each keyframe 
-can be set to some amount of seconds using a slider below the canvas.
+Run the python script make-hexcraft.py and deploy using http-server
 
-The video below shows its usage and all other features of this project.
-https://youtu.be/Ia7jLrfm6mg
+python3 make-hexcraft.py
+http-server ./dist -c-1
